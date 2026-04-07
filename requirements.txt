@@ -1,0 +1,6 @@
+Flask==2.3.3
+pandas==2.0.3
+openpyxl==3.1.2
+azure-identity==1.15.0
+requests==2.31.0
+Werkzeug==2.3.7
