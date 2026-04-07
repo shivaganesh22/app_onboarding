@@ -1,0 +1,738 @@
+{% extends "base.html" %}
+
+{% block title %}Review Row {{ current_index }} - Azure AD App Onboarding{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+    <!-- Progress Bar -->
+    <div class="bg-white rounded-lg shadow p-6">
+        <div class="flex items-center justify-between mb-4">
+            <h2 class="text-lg font-semibold text-gray-900">
+                <i class="fas fa-tasks mr-2"></i>Processing Row {{ current_index }} of {{ total_rows }}
+            </h2>
+            <span class="text-sm text-gray-500">{{ ((current_index / total_rows) * 100) | round(1) }}% Complete</span>
+        </div>
+        <div class="w-full bg-gray-200 rounded-full h-2">
+            <div class="bg-azure-blue h-2 rounded-full transition-all duration-300" style="width: {{ (current_index / total_rows) * 100 }}%"></div>
+        </div>
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <!-- Notes Section -->
+        <div class="bg-white rounded-lg shadow p-6">
+            <h3 class="text-lg font-semibold text-gray-900 mb-4">
+                <i class="fas fa-sticky-note mr-2"></i>Processing Notes
+            </h3>
+            <div class="space-y-3">
+                {% for note in row.notes %}
+                    <div class="flex items-start p-3 rounded-lg {% if note.type == 'error' %}bg-red-50 border-l-4 border-red-400{% elif note.type == 'warning' %}bg-yellow-50 border-l-4 border-yellow-400{% else %}bg-green-50 border-l-4 border-green-400{% endif %}">
+                        <i class="fas fa-{% if note.type == 'error' %}times-circle text-red-500{% elif note.type == 'warning' %}exclamation-triangle text-yellow-500{% else %}check-circle text-green-500{% endif %} mr-3 mt-0.5"></i>
+                        <span class="text-sm {% if note.type == 'error' %}text-red-700{% elif note.type == 'warning' %}text-yellow-700{% else %}text-green-700{% endif %}">{{ note.message }}</span>
+                    </div>
+                {% endfor %}
+            </div>
+        </div>
+
+        <!-- Raw Data Section -->
+        <div class="bg-white rounded-lg shadow p-6">
+            <h3 class="text-lg font-semibold text-gray-900 mb-4">
+                <i class="fas fa-database mr-2"></i>Raw Excel Data
+            </h3>
+            <div class="grid grid-cols-2 gap-3 text-sm">
+                <div><strong>Ticket:</strong> {{ row.ticket_number }}</div>
+                <div><strong>Requested For:</strong> {{ row.requested_for }}</div>
+                <div><strong>Requested By:</strong> {{ row.requested_by }}</div>
+                <div><strong>App Name:</strong> {{ row.application_name }}</div>
+                <div><strong>App Type:</strong> {{ row.application_type }}</div>
+                <div><strong>Risk Assessment:</strong> {{ row.risk_assessment }}</div>
+                <div><strong>Business Owner:</strong> {{ row.business_owner }}</div>
+                <div><strong>Technical Owner:</strong> {{ row.technical_owner }}</div>
+                <div><strong>Auth Method:</strong> {{ row.authentication_method }}</div>
+                <div><strong>Environment:</strong> {{ row.environment }}</div>
+                <div><strong>Redirect URL:</strong> {{ row.redirect_url if row.redirect_url != 'nan' else 'None' }}</div>
+                <div><strong>Tenant:</strong> {{ row.tenant }}</div>
+            </div>
+        </div>
+    </div>
+
+    {% if row.skip %}
+        <!-- Skip Section -->
+        <div class="bg-red-50 border border-red-200 rounded-lg p-6">
+            <div class="flex items-center">
+                <i class="fas fa-exclamation-triangle text-red-500 text-2xl mr-4"></i>
+                <div>
+                    <h3 class="text-lg font-semibold text-red-800">Cannot Process This Row</h3>
+                    <p class="text-red-600">This row has validation errors and will be skipped automatically.</p>
+                </div>
+            </div>
+            <div class="mt-4">
+                <a href="{{ url_for('skip') }}" class="inline-flex items-center px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 transition-colors">
+                    <i class="fas fa-forward mr-2"></i>Skip to Next Row
+                </a>
+            </div>
+        </div>
+    {% else %}
+        <!-- Application Configuration Form with Execution -->
+        <div class="bg-white rounded-lg shadow p-6">
+            <h3 class="text-lg font-semibold text-gray-900 mb-6">
+                <i class="fas fa-cog mr-2"></i>Application Configuration & Execution
+            </h3>
+
+            <form id="config-form" class="space-y-6">
+                <!-- App Type Selection -->
+                <div>
+                    <label class="text-base font-medium text-gray-900">Application Type</label>
+                    <fieldset class="mt-4">
+                        <div class="space-y-4">
+                            <div class="flex items-center">
+                                <input id="saml" name="app_type" type="radio" value="SAML" class="h-4 w-4 text-azure-blue border-gray-300 focus:ring-azure-blue" {% if row.suggested_app_type == 'SAML' %}checked{% endif %}>
+                                <label for="saml" class="ml-3 block text-sm font-medium text-gray-700">
+                                    <i class="fas fa-shield-alt mr-1"></i>SAML (Enterprise Application)
+                                </label>
+                            </div>
+                            <div class="flex items-center">
+                                <input id="oidc" name="app_type" type="radio" value="OIDC" class="h-4 w-4 text-azure-blue border-gray-300 focus:ring-azure-blue" {% if row.suggested_app_type == 'OIDC' %}checked{% endif %}>
+                                <label for="oidc" class="ml-3 block text-sm font-medium text-gray-700">
+                                    <i class="fas fa-key mr-1"></i>OIDC (App Registration)
+                                </label>
+                            </div>
+                        </div>
+                    </fieldset>
+                </div>
+
+                <!-- SAML Configuration -->
+                <div id="saml-config" class="space-y-4" style="display: {% if row.suggested_app_type == 'SAML' %}block{% else %}none{% endif %}">
+                    <div>
+                        <label for="saml_app_name" class="block text-sm font-medium text-gray-700">Application Name *</label>
+                        <input type="text" id="saml_app_name" name="app_name" value="{{ row.processed_app_name }}" required class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-azure-blue focus:border-azure-blue">
+                    </div>
+
+                    <div>
+                        <label class="text-sm font-medium text-gray-700">Gallery Application</label>
+                        <div class="mt-2 space-y-2">
+                            <div class="flex items-center">
+                                <input id="gallery_yes" name="gallery_app" type="radio" value="yes" class="h-4 w-4 text-azure-blue border-gray-300 focus:ring-azure-blue">
+                                <label for="gallery_yes" class="ml-3 block text-sm text-gray-700">Yes - Search in Azure AD Gallery</label>
+                            </div>
+                            <div class="flex items-center">
+                                <input id="gallery_no" name="gallery_app" type="radio" value="no" class="h-4 w-4 text-azure-blue border-gray-300 focus:ring-azure-blue" checked>
+                                <label for="gallery_no" class="ml-3 block text-sm text-gray-700">No - Create custom application</label>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div id="gallery_name_field" style="display: none;">
+                        <label for="gallery_name" class="block text-sm font-medium text-gray-700">Gallery Search Name</label>
+                        <input type="text" id="gallery_name" name="gallery_name" value="{{ row.application_name }}" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-azure-blue focus:border-azure-blue">
+                        <p class="mt-1 text-xs text-gray-500">Name to search for in Azure AD Gallery (without environment)</p>
+                    </div>
+
+                    <div>
+                        <label for="saml_owners" class="block text-sm font-medium text-gray-700">Owners (one per line) *</label>
+                        <textarea id="saml_owners" name="owners" rows="3" required class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-azure-blue focus:border-azure-blue">{{ row.owners | join('\n') }}</textarea>
+                    </div>
+                </div>
+
+                <!-- OIDC Configuration -->
+                <div id="oidc-config" class="space-y-4" style="display: {% if row.suggested_app_type == 'OIDC' %}block{% else %}none{% endif %}">
+                    <div>
+                        <label for="oidc_app_name" class="block text-sm font-medium text-gray-700">Application Name *</label>
+                        <input type="text" id="oidc_app_name" name="app_name" value="{{ row.processed_app_name }}" required class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-azure-blue focus:border-azure-blue">
+                    </div>
+
+                    <div>
+                        <label for="tenant" class="block text-sm font-medium text-gray-700">Tenant Type *</label>
+                        <select id="tenant" name="tenant" required class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-azure-blue focus:border-azure-blue">
+                            <option value="Single-Tenant" {% if row.suggested_tenant == 'Single-Tenant' %}selected{% endif %}>Single-Tenant</option>
+                            <option value="Multi-Tenant" {% if row.suggested_tenant == 'Multi-Tenant' %}selected{% endif %}>Multi-Tenant</option>
+                        </select>
+                    </div>
+
+                    <div>
+                        <label for="redirect_urls" class="block text-sm font-medium text-gray-700">Redirect URLs (one per line)</label>
+                        <textarea id="redirect_urls" name="redirect_urls" rows="3" placeholder="https://localhost:3000/auth/callback&#10;https://myapp.com/signin-oidc" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-azure-blue focus:border-azure-blue">{{ row.redirect_url if row.redirect_url != 'nan' else '' }}</textarea>
+                    </div>
+
+                    <div>
+                        <label for="oidc_owners" class="block text-sm font-medium text-gray-700">Owners (one per line) *</label>
+                        <textarea id="oidc_owners" name="owners" rows="3" required class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-azure-blue focus:border-azure-blue">{{ row.owners | join('\n') }}</textarea>
+                    </div>
+                </div>
+
+                <!-- Execution Section -->
+                <div id="execution-section" class="border-t pt-6">
+                    <h4 class="text-lg font-semibold text-gray-900 mb-4">
+                        <i class="fas fa-rocket mr-2"></i>Execute Application Creation
+                    </h4>
+                    
+                    <!-- Execution Progress -->
+                    <div class="mb-4" id="progress-section" style="display: none;">
+                        <div class="flex items-center justify-between mb-2">
+                            <span id="current-step" class="text-sm text-gray-600">Ready to start...</span>
+                            <span id="progress-percent" class="text-sm text-gray-500">0%</span>
+                        </div>
+                        <div class="w-full bg-gray-200 rounded-full h-3">
+                            <div id="progress-bar" class="bg-azure-blue h-3 rounded-full transition-all duration-500" style="width: 0%"></div>
+                        </div>
+                    </div>
+
+                    <!-- Execution Logs -->
+                    <div class="mb-4">
+                        <div class="flex items-center justify-between mb-2">
+                            <h5 class="text-sm font-medium text-gray-700">
+                                <i class="fas fa-terminal mr-2"></i>Execution Logs
+                            </h5>
+                            <button type="button" onclick="clearLogs()" class="text-xs text-gray-500 hover:text-gray-700" style="display: none;" id="clear-logs-btn">
+                                <i class="fas fa-trash mr-1"></i>Clear
+                            </button>
+                        </div>
+                        <div id="execution-logs" class="bg-gray-900 text-green-400 p-4 rounded-md font-mono text-sm min-h-32 max-h-64 overflow-y-auto">
+                            <div class="text-gray-500">
+                                <i class="fas fa-info-circle mr-2"></i>Click "Execute Application Creation" to begin...
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Application Details Section -->
+                    <div class="mb-4" id="app-details-section" style="display: none;">
+                        <div class="border-t border-gray-200 pt-4">
+                            <h5 class="text-sm font-medium text-gray-900 mb-3">
+                                <i class="fas fa-info-circle mr-2"></i>Application Details
+                            </h5>
+                            <div id="app-details-content" class="bg-white border border-gray-200 rounded-lg p-4">
+                                <!-- Details will be populated here -->
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Status and Actions -->
+                    <div id="status-section" class="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
+                        <div class="flex items-center">
+                            <div id="status-spinner" class="hidden animate-spin rounded-full h-5 w-5 border-b-2 border-azure-blue mr-3"></div>
+                            <div>
+                                <span id="status-text" class="text-sm font-medium text-gray-700">Ready to execute</span>
+                                <div id="status-subtext" class="text-xs text-gray-500 mt-1"></div>
+                            </div>
+                        </div>
+                        
+                        <div id="completion-actions" class="hidden">
+                            <button type="button" onclick="continueToNext()" class="inline-flex items-center px-4 py-2 bg-azure-blue text-white rounded-md hover:bg-azure-dark transition-colors">
+                                <i class="fas fa-arrow-right mr-2"></i>Continue to Next Row
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Action Buttons -->
+                <div class="flex justify-between pt-6 border-t border-gray-200">
+                    <a href="{{ url_for('skip') }}" class="inline-flex items-center px-6 py-3 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-azure-blue">
+                        <i class="fas fa-times mr-2"></i>Skip This Row
+                    </a>
+                    
+                    <button type="button" id="execute-btn" onclick="executeConfiguration()" class="inline-flex items-center px-6 py-3 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500">
+                        <i class="fas fa-rocket mr-2"></i>Execute Application Creation
+                    </button>
+                </div>
+            </form>
+        </div>
+    {% endif %}
+</div>
+
+<script>
+    let executionStarted = false;
+    let executionComplete = false;
+    let pollInterval;
+    let currentExecutionId = null;
+
+    // Toggle between SAML and OIDC configurations
+    const samlRadio = document.getElementById('saml');
+    const oidcRadio = document.getElementById('oidc');
+    const samlConfig = document.getElementById('saml-config');
+    const oidcConfig = document.getElementById('oidc-config');
+
+    function toggleConfig() {
+        if (samlRadio.checked) {
+            samlConfig.style.display = 'block';
+            oidcConfig.style.display = 'none';
+        } else {
+            samlConfig.style.display = 'none';
+            oidcConfig.style.display = 'block';
+        }
+    }
+
+    samlRadio.addEventListener('change', toggleConfig);
+    oidcRadio.addEventListener('change', toggleConfig);
+
+    // Toggle gallery name field
+    const galleryYes = document.getElementById('gallery_yes');
+    const galleryNo = document.getElementById('gallery_no');
+    const galleryNameField = document.getElementById('gallery_name_field');
+
+    function toggleGalleryName() {
+        if (galleryYes.checked) {
+            galleryNameField.style.display = 'block';
+        } else {
+            galleryNameField.style.display = 'none';
+        }
+    }
+
+    galleryYes.addEventListener('change', toggleGalleryName);
+    galleryNo.addEventListener('change', toggleGalleryName);
+
+    // Sync app names between SAML and OIDC
+    const samlAppName = document.getElementById('saml_app_name');
+    const oidcAppName = document.getElementById('oidc_app_name');
+
+    samlAppName.addEventListener('input', function() {
+        oidcAppName.value = this.value;
+    });
+
+    oidcAppName.addEventListener('input', function() {
+        samlAppName.value = this.value;
+    });
+
+    // Sync owners between SAML and OIDC
+    const samlOwners = document.getElementById('saml_owners');
+    const oidcOwners = document.getElementById('oidc_owners');
+
+    samlOwners.addEventListener('input', function() {
+        oidcOwners.value = this.value;
+    });
+
+    oidcOwners.addEventListener('input', function() {
+        samlOwners.value = this.value;
+    });
+
+    function clearLogs() {
+        const logsContainer = document.getElementById('execution-logs');
+        logsContainer.innerHTML = '<div class="text-gray-500"><i class="fas fa-info-circle mr-2"></i>Logs cleared</div>';
+    }
+
+    // Execute configuration function
+    function executeConfiguration() {
+        if (executionStarted) return;
+        
+        executionStarted = true;
+        const executeBtn = document.getElementById('execute-btn');
+        const statusSpinner = document.getElementById('status-spinner');
+        const statusText = document.getElementById('status-text');
+        const logsContainer = document.getElementById('execution-logs');
+        const progressSection = document.getElementById('progress-section');
+        const clearLogsBtn = document.getElementById('clear-logs-btn');
+        
+        // Get form data
+        const form = document.getElementById('config-form');
+        const formData = new FormData(form);
+        
+        // Convert to JSON
+        const data = {
+            app_type: formData.get('app_type'),
+            app_name: formData.get('app_name'),
+            gallery_app: formData.get('gallery_app') === 'yes',
+            gallery_name: formData.get('gallery_name') || '',
+            tenant: formData.get('tenant') || 'Single-Tenant',
+            redirect_urls: formData.get('redirect_urls') ? formData.get('redirect_urls').split('\n').filter(url => url.trim()) : [],
+            owners: formData.get('owners') ? formData.get('owners').split('\n').filter(owner => owner.trim()) : []
+        };
+        
+        // Update button state
+        executeBtn.disabled = true;
+        executeBtn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Executing...';
+        
+        // Show progress section and spinner
+        progressSection.style.display = 'block';
+        statusSpinner.classList.remove('hidden');
+        statusText.textContent = 'Starting execution...';
+        clearLogsBtn.style.display = 'inline-block';
+        
+        // Clear logs and show starting message
+        logsContainer.innerHTML = '<div class="text-blue-400"><i class="fas fa-rocket mr-2"></i>Starting execution...</div>';
+        
+        console.log('Sending form data:', data);
+        
+        // Start the execution via AJAX
+        fetch('/execute_direct', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(data)
+        })
+        .then(response => {
+            console.log('Response status:', response.status);
+            
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            
+            return response.text().then(text => {
+                console.log('Response text:', text);
+                try {
+                    return JSON.parse(text);
+                } catch (e) {
+                    console.error('JSON parse error:', e);
+                    console.error('Response was:', text);
+                    throw new Error('Invalid JSON response from server');
+                }
+            });
+        })
+        .then(data => {
+            if (data.execution_id) {
+                currentExecutionId = data.execution_id;
+                console.log('Execution started, polling for updates...');
+                pollInterval = setInterval(() => pollExecutionStatus(data.execution_id), 500);
+            } else {
+                handleExecutionError('Failed to start execution: ' + (data.error || 'Unknown error'));
+            }
+        })
+        .catch(error => {
+            console.error('Error starting execution:', error);
+            handleExecutionError('Network error: ' + error.message);
+        });
+    }
+
+    function pollExecutionStatus(executionId) {
+        fetch(`/execution_status/${executionId}`)
+            .then(response => response.json())
+            .then(data => {
+                if (data.error) {
+                    clearInterval(pollInterval);
+                    handleExecutionError(data.error);
+                    return;
+                }
+                
+                updateProgress(data.current_step || 'Processing...', data.progress || 0);
+                updateLogs(data.logs || []);
+                
+                if (data.status === 'completed') {
+                    clearInterval(pollInterval);
+                    updateSessionAndShowComplete(true, data.result);
+                } else if (data.status === 'error') {
+                    clearInterval(pollInterval);
+                    updateSessionAndShowComplete(false, data.error);
+                }
+            })
+            .catch(error => {
+                console.error('Error polling status:', error);
+            });
+    }
+
+    function updateProgress(step, progress) {
+        const currentStep = document.getElementById('current-step');
+        const progressBar = document.getElementById('progress-bar');
+        const progressPercent = document.getElementById('progress-percent');
+        
+        if (currentStep) currentStep.textContent = step;
+        if (progressBar) progressBar.style.width = progress + '%';
+        if (progressPercent) progressPercent.textContent = progress + '%';
+    }
+
+    function updateLogs(logs) {
+        const logsContainer = document.getElementById('execution-logs');
+        
+        logsContainer.innerHTML = '';
+        
+        logs.forEach(log => {
+            const logDiv = document.createElement('div');
+            logDiv.className = 'mb-1';
+            
+            let textColor = 'text-green-400';
+            switch(log.type) {
+                case 'error':
+                    textColor = 'text-red-400';
+                    break;
+                case 'success':
+                    textColor = 'text-green-400';
+                    break;
+                case 'info':
+                    textColor = 'text-blue-400';
+                    break;
+                default:
+                    textColor = 'text-gray-400';
+            }
+            
+            logDiv.innerHTML = `
+                <span class="text-gray-500">[${log.timestamp}]</span>
+                <span class="${textColor}">${log.message}</span>
+            `;
+            
+            logsContainer.appendChild(logDiv);
+        });
+        
+        logsContainer.scrollTop = logsContainer.scrollHeight;
+    }
+
+    function updateSessionAndShowComplete(success, result) {
+        console.log('Execution completed, updating session...');
+        
+        if (!currentExecutionId) {
+            console.error('No execution ID found!');
+            handleExecutionComplete(success, result);
+            return;
+        }
+        
+        // Update session in background
+        fetch(`/complete_execution/${currentExecutionId}`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            console.log('✅ Session updated successfully:', data);
+            
+            if (data.success) {
+                console.log(`Current row saved. Next index: ${data.next_index}/${data.total_rows}`);
+                
+                // Now show completion UI with details
+                handleExecutionComplete(success, result);
+            } else {
+                console.error('❌ Error updating session:', data.error);
+                handleExecutionComplete(success, result);
+            }
+        })
+        .catch(error => {
+            console.error('❌ Network error updating session:', error);
+            handleExecutionComplete(success, result);
+        });
+    }
+
+    function handleExecutionComplete(success, result) {
+        executionComplete = true;
+        const statusSpinner = document.getElementById('status-spinner');
+        const statusText = document.getElementById('status-text');
+        const statusSubtext = document.getElementById('status-subtext');
+        const completionActions = document.getElementById('completion-actions');
+        const executeBtn = document.getElementById('execute-btn');
+        const appDetailsSection = document.getElementById('app-details-section');
+        const appDetailsContent = document.getElementById('app-details-content');
+        
+        statusSpinner.classList.add('hidden');
+        statusText.textContent = success ? '✅ Execution completed successfully!' : '❌ Execution failed';
+        statusText.className = success ? 'text-sm font-semibold text-green-600' : 'text-sm font-semibold text-red-600';
+        
+        if (statusSubtext) {
+            statusSubtext.textContent = '✓ Result saved to summary';
+            statusSubtext.className = 'text-xs text-green-600 mt-1';
+        }
+        
+        completionActions.classList.remove('hidden');
+        executeBtn.style.display = 'none';
+        
+        updateProgress(success ? 'Completed and saved!' : 'Failed', 100);
+        
+        const logsContainer = document.getElementById('execution-logs');
+        const finalDiv = document.createElement('div');
+        finalDiv.className = 'mt-2 p-3 rounded border-2 ' + (success ? 'bg-green-900 border-green-600' : 'bg-red-900 border-red-600');
+        finalDiv.innerHTML = `
+            <div class="flex items-center">
+                <i class="fas fa-${success ? 'check-circle' : 'exclamation-triangle'} text-2xl mr-3"></i>
+                <div>
+                    <div class="${success ? 'text-green-200' : 'text-red-200'} font-semibold">
+                        ${success ? '✅ Application created successfully!' : '❌ Application creation failed'}
+                    </div>
+                    <div class="text-xs ${success ? 'text-green-300' : 'text-red-300'} mt-1">
+                        ${success ? 'Result has been saved to summary' : 'Error: ' + result}
+                    </div>
+                </div>
+            </div>
+        `;
+        logsContainer.appendChild(finalDiv);
+        logsContainer.scrollTop = logsContainer.scrollHeight;
+
+        // Show application details if successful
+        if (success && result) {
+            appDetailsSection.style.display = 'block';
+            appDetailsContent.innerHTML = renderAppDetails(result);
+        }
+
+        if (success) {
+            showNotification('✅ Application created and saved to summary!', 'success');
+        } else {
+            showNotification('❌ Application creation failed', 'error');
+        }
+    }
+
+    function renderAppDetails(result) {
+        let html = '';
+        
+        // OIDC App Registration
+        if (result.app_registration) {
+            const appReg = result.app_registration;
+            html += `
+                <div class="mb-4">
+                    <h6 class="font-semibold text-blue-800 mb-2 flex items-center">
+                        <i class="fas fa-key mr-2"></i>App Registration
+                    </h6>
+                    <div class="bg-blue-50 p-3 rounded text-sm space-y-1">
+                        <div class="grid grid-cols-2 gap-2">
+                            <div><strong>Client ID:</strong></div>
+                            <div class="font-mono text-xs">${appReg.client_id || 'N/A'}</div>
+                            <div><strong>Object ID:</strong></div>
+                            <div class="font-mono text-xs">${appReg.id || 'N/A'}</div>
+                            <div><strong>Tenant Type:</strong></div>
+                            <div>${appReg.tenant_type || 'N/A'}</div>
+                            <div><strong>Sign-in Audience:</strong></div>
+                            <div>${appReg.signin_audience || 'N/A'}</div>
+                        </div>
+            `;
+            
+            if (appReg.redirect_urls && appReg.redirect_urls.length > 0) {
+                html += `
+                    <div class="mt-2 pt-2 border-t border-blue-200">
+                        <strong>Redirect URLs:</strong>
+                        <ul class="ml-4 mt-1 space-y-1">
+                            ${appReg.redirect_urls.map(url => `<li class="text-xs">• ${url}</li>`).join('')}
+                        </ul>
+                    </div>
+                `;
+            }
+            
+            if (appReg.owners_added && appReg.owners_added.length > 0) {
+                html += `
+                    <div class="mt-2 pt-2 border-t border-blue-200">
+                        <strong>Owners:</strong>
+                        <div class="flex flex-wrap gap-1 mt-1">
+                            ${appReg.owners_added.map(owner => `<span class="px-2 py-1 bg-blue-200 text-blue-800 rounded text-xs">${owner}</span>`).join('')}
+                        </div>
+                    </div>
+                `;
+            }
+            
+            html += `</div></div>`;
+        }
+        
+        // Service Principal (Enterprise Application)
+        if (result.service_principal) {
+            const sp = result.service_principal;
+            const isSaml = result.app_registration ? false : true;
+            
+            html += `
+                <div>
+                    <h6 class="font-semibold text-green-800 mb-2 flex items-center">
+                        <i class="fas fa-${isSaml ? 'shield-alt' : 'building'} mr-2"></i>${isSaml ? 'SAML Enterprise Application' : 'Enterprise Application'}
+                    </h6>
+                    <div class="bg-green-50 p-3 rounded text-sm space-y-1">
+                        <div class="grid grid-cols-2 gap-2">
+                            <div><strong>Service Principal ID:</strong></div>
+                            <div class="font-mono text-xs">${sp.id || 'N/A'}</div>
+                            <div><strong>Application ID:</strong></div>
+                            <div class="font-mono text-xs">${sp.app_id || 'N/A'}</div>
+                            <div><strong>Display Name:</strong></div>
+                            <div>${sp.display_name || result.display_name || 'N/A'}</div>
+            `;
+            
+            if (result.created_from_gallery !== undefined) {
+                html += `
+                    <div><strong>Source:</strong></div>
+                    <div>${result.created_from_gallery ? 'Gallery Application' : 'Non-Gallery Application'}</div>
+                `;
+            }
+            
+            html += `</div>`;
+            
+            if (sp.owners_added && sp.owners_added.length > 0) {
+                html += `
+                    <div class="mt-2 pt-2 border-t border-green-200">
+                        <strong>Owners:</strong>
+                        <div class="flex flex-wrap gap-1 mt-1">
+                            ${sp.owners_added.map(owner => `<span class="px-2 py-1 bg-green-200 text-green-800 rounded text-xs">${owner}</span>`).join('')}
+                        </div>
+                    </div>
+                `;
+            }
+            
+            html += `</div></div>`;
+        }
+        
+        if (!html) {
+            html = '<div class="text-gray-500 text-sm">No application details available</div>';
+        }
+        
+        return html;
+    }
+
+    function handleExecutionError(error) {
+        executionComplete = true;
+        const statusSpinner = document.getElementById('status-spinner');
+        const statusText = document.getElementById('status-text');
+        const completionActions = document.getElementById('completion-actions');
+        const logsContainer = document.getElementById('execution-logs');
+        const executeBtn = document.getElementById('execute-btn');
+        
+        statusSpinner.classList.add('hidden');
+        statusText.textContent = 'Execution failed';
+        statusText.className = 'text-sm text-red-600';
+        completionActions.classList.remove('hidden');
+        executeBtn.style.display = 'none';
+        
+        const errorDiv = document.createElement('div');
+        errorDiv.className = 'text-red-400';
+        errorDiv.innerHTML = `
+            <span class="text-gray-500">[${new Date().toLocaleTimeString()}]</span>
+            ❌ Error: ${error}
+        `;
+        logsContainer.appendChild(errorDiv);
+        logsContainer.scrollTop = logsContainer.scrollHeight;
+        
+        updateProgress('Failed', 100);
+        showNotification('❌ Execution failed: ' + error, 'error');
+        
+        if (currentExecutionId) {
+            updateSessionAndShowComplete(false, error);
+        }
+    }
+
+    function continueToNext() {
+        if (!executionComplete) {
+            showNotification('⚠️ Please wait for execution to complete', 'error');
+            return;
+        }
+        
+        console.log('Moving to next row (session already updated)...');
+        
+        const button = document.querySelector('#completion-actions button');
+        button.disabled = true;
+        button.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Loading next row...';
+        
+        setTimeout(() => {
+            window.location.href = '/review';
+        }, 300);
+    }
+
+    function showNotification(message, type) {
+        const notification = document.createElement('div');
+        notification.className = `fixed top-4 right-4 z-50 p-4 rounded-lg shadow-lg ${type === 'success' ? 'bg-green-100 border-green-400 text-green-700' : 'bg-red-100 border-red-400 text-red-700'} border max-w-md`;
+        notification.innerHTML = `
+            <div class="flex items-center">
+                <span>${message}</span>
+                <button onclick="this.parentElement.parentElement.remove()" class="ml-4 text-lg font-bold">&times;</button>
+            </div>
+        `;
+        
+        document.body.appendChild(notification);
+        
+        setTimeout(() => {
+            if (notification.parentElement) {
+                notification.remove();
+            }
+        }, 5000);
+    }
+
+    function checkSessionDebug() {
+        fetch('/debug_session')
+            .then(response => response.json())
+            .then(data => {
+                console.log('=== SESSION DEBUG ===');
+                console.log('Current Index:', data.current_index);
+                console.log('Total Rows:', data.processed_data_length);
+                console.log('Results Count:', data.results_count);
+                console.log('Summary:', data.summary);
+                console.log('Storage Type:', data.storage_type);
+                console.log('====================');
+                alert(`Current Index: ${data.current_index}\nTotal Rows: ${data.processed_data_length}\nResults: ${data.results_count}\n\nCheck console for full details`);
+            });
+    }
+</script>
+{% endblock %}
