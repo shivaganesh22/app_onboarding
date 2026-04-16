@@ -1,0 +1,623 @@
+{% extends "base.html" %}
+{% block title %}Manual Onboarding — Azure AD App Onboarding{% endblock %}
+
+{% block extra_head %}
+<style>
+    .field-highlight { transition: box-shadow 0.2s, border-color 0.2s; }
+    .field-highlight:focus { box-shadow: 0 0 0 3px rgba(139,92,246,0.15); }
+    .log-entry { animation: fadeIn 0.2s ease-out; }
+    @keyframes fadeIn { from{opacity:0;transform:translateY(4px)} to{opacity:1;transform:translateY(0)} }
+    .type-card { transition: all 0.2s ease; }
+</style>
+{% endblock %}
+
+{% block content %}
+<!-- Page Header -->
+<div class="flex items-center justify-between mb-6 animate-slide-up">
+    <div class="flex items-center space-x-3">
+        <a href="{{ url_for('index') }}" class="w-9 h-9 rounded-xl bg-slate-100 hover:bg-slate-200 flex items-center justify-center transition-colors">
+            <i class="fas fa-arrow-left text-slate-600 text-sm"></i>
+        </a>
+        <div>
+            <h1 class="text-2xl font-extrabold text-slate-900">Manual App Onboarding</h1>
+            <p class="text-slate-500 text-sm">Fill in the form below to register a new Azure AD application</p>
+        </div>
+    </div>
+    <div class="flex items-center space-x-2 px-4 py-2 rounded-xl text-white shadow-md"
+         style="background:linear-gradient(135deg,#7c3aed,#6d28d9)">
+        <i class="fas fa-edit text-sm"></i>
+        <span class="text-sm font-semibold">Manual Mode</span>
+    </div>
+</div>
+
+<div class="grid grid-cols-1 xl:grid-cols-3 gap-6">
+
+    <!-- ─── LEFT: Form ─── -->
+    <div class="xl:col-span-2 space-y-6">
+        <form id="manual-form" class="space-y-6">
+
+            <!-- ── Application Details ── -->
+            <div class="bg-white rounded-2xl shadow-sm border border-slate-100 p-6 animate-slide-up">
+                <h3 class="font-bold text-slate-800 mb-5 flex items-center space-x-2 text-base">
+                    <div class="w-7 h-7 rounded-lg bg-violet-100 flex items-center justify-center">
+                        <i class="fas fa-cube text-violet-600 text-sm"></i>
+                    </div>
+                    <span>Application Details</span>
+                </h3>
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div class="sm:col-span-2">
+                        <label class="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5" for="m-app-name">
+                            Application Name <span class="text-red-400">*</span>
+                        </label>
+                        <input type="text" id="m-app-name" name="app_name" required
+                               placeholder="e.g. MyApp - Production"
+                               class="w-full px-4 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-violet-400/30 focus:border-violet-400 field-highlight transition-all">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5" for="m-environment">
+                            Environment
+                        </label>
+                        <div class="relative">
+                            <select id="m-environment" name="environment"
+                                    class="w-full pl-4 pr-10 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-violet-400/30 focus:border-violet-400 appearance-none bg-white field-highlight transition-all">
+                                <option value="">-- Select --</option>
+                                <option value="Production">Production</option>
+                                <option value="Staging">Staging</option>
+                                <option value="Development">Development</option>
+                                <option value="UAT">UAT</option>
+                                <option value="QA">QA</option>
+                            </select>
+                            <div class="pointer-events-none absolute inset-y-0 right-3 flex items-center">
+                                <i class="fas fa-chevron-down text-slate-400 text-xs"></i>
+                            </div>
+                        </div>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5" for="m-risk">
+                            Risk Assessment #
+                        </label>
+                        <input type="text" id="m-risk" name="risk_assessment"
+                               placeholder="5-digit number"
+                               maxlength="5"
+                               class="w-full px-4 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-violet-400/30 focus:border-violet-400 field-highlight transition-all font-mono">
+                    </div>
+                    <div class="sm:col-span-2">
+                        <label class="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5" for="m-purpose">
+                            Purpose / Description
+                        </label>
+                        <textarea id="m-purpose" name="purpose" rows="2"
+                                  placeholder="Brief description of what this application does..."
+                                  class="w-full px-4 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-violet-400/30 focus:border-violet-400 resize-none field-highlight transition-all"></textarea>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ── Application Type ── -->
+            <div class="bg-white rounded-2xl shadow-sm border border-slate-100 p-6 animate-slide-up">
+                <h3 class="font-bold text-slate-800 mb-5 flex items-center space-x-2 text-base">
+                    <div class="w-7 h-7 rounded-lg bg-violet-100 flex items-center justify-center">
+                        <i class="fas fa-layer-group text-violet-600 text-sm"></i>
+                    </div>
+                    <span>Application Type</span>
+                </h3>
+
+                <div class="grid grid-cols-2 gap-4 mb-5">
+                    <!-- OIDC Card -->
+                    <label id="m-oidc-card"
+                           class="type-card relative flex flex-col p-5 border-2 border-azure-blue bg-blue-50 rounded-2xl cursor-pointer"
+                           onclick="mSelectType('OIDC')">
+                        <input type="radio" name="app_type" value="OIDC" id="m-oidc" class="sr-only" checked>
+                        <div class="flex items-start justify-between mb-3">
+                            <div class="w-10 h-10 rounded-xl bg-blue-100 flex items-center justify-center">
+                                <i class="fas fa-key text-blue-600"></i>
+                            </div>
+                            <div id="m-oidc-check" class="w-6 h-6 rounded-full bg-azure-blue flex items-center justify-center">
+                                <i class="fas fa-check text-white text-xs"></i>
+                            </div>
+                        </div>
+                        <span class="font-bold text-slate-800">OIDC</span>
+                        <span class="text-xs text-slate-500 mt-1">App Registration<br>OAuth 2.0 / OpenID Connect</span>
+                    </label>
+                    <!-- SAML Card -->
+                    <label id="m-saml-card"
+                           class="type-card relative flex flex-col p-5 border-2 border-slate-200 hover:border-slate-300 rounded-2xl cursor-pointer"
+                           onclick="mSelectType('SAML')">
+                        <input type="radio" name="app_type" value="SAML" id="m-saml" class="sr-only">
+                        <div class="flex items-start justify-between mb-3">
+                            <div class="w-10 h-10 rounded-xl bg-emerald-100 flex items-center justify-center">
+                                <i class="fas fa-shield-alt text-emerald-600"></i>
+                            </div>
+                            <div id="m-saml-check" class="w-6 h-6 rounded-full bg-slate-200 hidden items-center justify-center">
+                                <i class="fas fa-check text-white text-xs"></i>
+                            </div>
+                        </div>
+                        <span class="font-bold text-slate-800">SAML</span>
+                        <span class="text-xs text-slate-500 mt-1">Enterprise Application<br>SAML 2.0 SSO</span>
+                    </label>
+                </div>
+
+                <!-- Authentication Method -->
+                <div class="mb-4">
+                    <label class="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5" for="m-auth-method">
+                        Authentication Method
+                    </label>
+                    <div class="relative">
+                        <select id="m-auth-method" name="auth_method"
+                                class="w-full pl-4 pr-10 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-violet-400/30 appearance-none bg-white field-highlight transition-all">
+                            <option value="">-- Select method --</option>
+                            <option value="OATH">OATH (OIDC / OAuth 2.0)</option>
+                            <option value="SAML/SSO">SAML / SSO</option>
+                        </select>
+                        <div class="pointer-events-none absolute inset-y-0 right-3 flex items-center">
+                            <i class="fas fa-chevron-down text-slate-400 text-xs"></i>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- OIDC Section -->
+                <div id="m-oidc-section" class="space-y-4 p-4 bg-blue-50 rounded-xl border border-blue-100">
+                    <h4 class="text-xs font-bold text-blue-700 uppercase tracking-wide">OIDC Settings</h4>
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5" for="m-tenant">
+                            Tenant Scope <span class="text-red-400">*</span>
+                        </label>
+                        <div class="relative">
+                            <select id="m-tenant" name="tenant"
+                                    class="w-full pl-4 pr-10 py-2.5 border border-blue-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-300/30 appearance-none bg-white field-highlight transition-all">
+                                <option value="Single-Tenant">Single-Tenant</option>
+                                <option value="Multi-Tenant">Multi-Tenant</option>
+                            </select>
+                            <div class="pointer-events-none absolute inset-y-0 right-3 flex items-center">
+                                <i class="fas fa-chevron-down text-slate-400 text-xs"></i>
+                            </div>
+                        </div>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5" for="m-redirect-urls">
+                            Redirect URLs <span class="text-slate-400 font-normal normal-case">(one per line)</span>
+                        </label>
+                        <textarea id="m-redirect-urls" name="redirect_urls" rows="3"
+                                  placeholder="https://myapp.com/auth/callback&#10;https://localhost:3000/signin-oidc"
+                                  class="w-full px-4 py-2.5 border border-blue-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-300/30 resize-none font-mono field-highlight transition-all"></textarea>
+                    </div>
+                </div>
+
+                <!-- SAML Section -->
+                <div id="m-saml-section" class="hidden space-y-4 p-4 bg-emerald-50 rounded-xl border border-emerald-100">
+                    <h4 class="text-xs font-bold text-emerald-700 uppercase tracking-wide">SAML Settings</h4>
+                    <div class="flex items-center space-x-3 p-3 bg-white rounded-xl border border-emerald-200">
+                        <input type="checkbox" id="m-gallery-app" name="gallery_app"
+                               class="h-4 w-4 rounded text-emerald-600 cursor-pointer">
+                        <div>
+                            <label for="m-gallery-app" class="block text-sm font-medium text-slate-800 cursor-pointer">Search in Azure AD Gallery</label>
+                            <p class="text-xs text-slate-500">Look up the app in the Microsoft app gallery for pre-configured SAML settings</p>
+                        </div>
+                    </div>
+                    <div id="m-gallery-name-field" class="hidden">
+                        <label class="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5" for="m-gallery-name">Gallery Search Name</label>
+                        <input type="text" id="m-gallery-name" name="gallery_name"
+                               class="w-full px-4 py-2.5 border border-emerald-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-emerald-300/30 field-highlight transition-all"
+                               placeholder="App name to search in gallery">
+                    </div>
+                </div>
+            </div>
+
+            <!-- ── Owners ── -->
+            <div class="bg-white rounded-2xl shadow-sm border border-slate-100 p-6 animate-slide-up">
+                <h3 class="font-bold text-slate-800 mb-5 flex items-center space-x-2 text-base">
+                    <div class="w-7 h-7 rounded-lg bg-violet-100 flex items-center justify-center">
+                        <i class="fas fa-users text-violet-600 text-sm"></i>
+                    </div>
+                    <span>Application Owners</span>
+                </h3>
+                <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-4">
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5" for="m-business-owner">Business Owner Email</label>
+                        <input type="email" id="m-business-owner"
+                               placeholder="bowner@company.com"
+                               class="w-full px-4 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-violet-400/30 focus:border-violet-400 field-highlight transition-all"
+                               oninput="mSyncOwners()">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5" for="m-tech-owner">Technical Owner Email</label>
+                        <input type="email" id="m-tech-owner"
+                               placeholder="towner@company.com"
+                               class="w-full px-4 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-violet-400/30 focus:border-violet-400 field-highlight transition-all"
+                               oninput="mSyncOwners()">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5" for="m-requested-for">Requested For Email</label>
+                        <input type="email" id="m-requested-for"
+                               placeholder="user@company.com"
+                               class="w-full px-4 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-violet-400/30 focus:border-violet-400 field-highlight transition-all"
+                               oninput="mSyncOwners()">
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5" for="m-owners">
+                        All Owners <span class="text-red-400">*</span> <span class="text-slate-400 font-normal normal-case">(one per line, auto-synced from above)</span>
+                    </label>
+                    <textarea id="m-owners" name="owners" rows="3" required
+                              placeholder="owner@company.com&#10;another@company.com"
+                              class="w-full px-4 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-violet-400/30 focus:border-violet-400 resize-none font-mono field-highlight transition-all"></textarea>
+                </div>
+            </div>
+
+            <!-- ── Additional Information ── -->
+            <div class="bg-white rounded-2xl shadow-sm border border-slate-100 p-6 animate-slide-up">
+                <h3 class="font-bold text-slate-800 mb-5 flex items-center space-x-2 text-base">
+                    <div class="w-7 h-7 rounded-lg bg-violet-100 flex items-center justify-center">
+                        <i class="fas fa-info-circle text-violet-600 text-sm"></i>
+                    </div>
+                    <span>Additional Information</span>
+                </h3>
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div class="flex items-center space-x-3 p-3 bg-slate-50 rounded-xl border border-slate-200">
+                        <input type="checkbox" id="m-api-perms" name="api_permissions_required"
+                               class="h-4 w-4 rounded text-violet-600 cursor-pointer">
+                        <div>
+                            <label for="m-api-perms" class="block text-sm font-medium text-slate-800 cursor-pointer">API Permissions Required</label>
+                            <p class="text-xs text-slate-500">This app needs specific API permissions</p>
+                        </div>
+                    </div>
+                    <div class="flex items-center space-x-3 p-3 bg-slate-50 rounded-xl border border-slate-200">
+                        <input type="checkbox" id="m-expose-apis" name="expose_apis"
+                               class="h-4 w-4 rounded text-violet-600 cursor-pointer">
+                        <div>
+                            <label for="m-expose-apis" class="block text-sm font-medium text-slate-800 cursor-pointer">Expose APIs</label>
+                            <p class="text-xs text-slate-500">This app will expose its own APIs</p>
+                        </div>
+                    </div>
+                    <div class="flex items-center space-x-3 p-3 bg-slate-50 rounded-xl border border-slate-200">
+                        <input type="checkbox" id="m-admin-consent" name="admin_consent"
+                               class="h-4 w-4 rounded text-violet-600 cursor-pointer">
+                        <div>
+                            <label for="m-admin-consent" class="block text-sm font-medium text-slate-800 cursor-pointer">Admin Consent Required</label>
+                            <p class="text-xs text-slate-500">Requires tenant-wide admin consent</p>
+                        </div>
+                    </div>
+                    <div class="flex items-center space-x-3 p-3 bg-slate-50 rounded-xl border border-slate-200">
+                        <input type="checkbox" id="m-users-assigned" name="users_assigned"
+                               class="h-4 w-4 rounded text-violet-600 cursor-pointer">
+                        <div>
+                            <label for="m-users-assigned" class="block text-sm font-medium text-slate-800 cursor-pointer">User Assignment Required</label>
+                            <p class="text-xs text-slate-500">Users must be explicitly assigned</p>
+                        </div>
+                    </div>
+                    <div class="sm:col-span-2">
+                        <label class="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5" for="m-additional-info">Notes / Additional Info</label>
+                        <textarea id="m-additional-info" name="additional_info" rows="2"
+                                  placeholder="Any additional context or requirements..."
+                                  class="w-full px-4 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-violet-400/30 resize-none field-highlight transition-all"></textarea>
+                    </div>
+                </div>
+            </div>
+
+        </form>
+    </div>
+
+    <!-- ─── RIGHT: Execution & Preview ─── -->
+    <div class="xl:col-span-1 space-y-5">
+
+        <!-- Form Preview (sticky) -->
+        <div class="bg-white rounded-2xl shadow-sm border border-slate-100 p-5 sticky top-4">
+            <h3 class="font-bold text-slate-800 mb-4 flex items-center space-x-2 text-sm">
+                <i class="fas fa-eye text-violet-500 text-sm"></i>
+                <span>Form Preview</span>
+            </h3>
+            <div class="space-y-2 text-xs mb-5" id="m-preview">
+                <div class="flex justify-between py-1.5 border-b border-slate-50">
+                    <span class="text-slate-400 font-medium">App Name</span>
+                    <span class="text-slate-700 font-semibold text-right" id="prev-name">—</span>
+                </div>
+                <div class="flex justify-between py-1.5 border-b border-slate-50">
+                    <span class="text-slate-400 font-medium">Environment</span>
+                    <span class="text-slate-700 text-right" id="prev-env">—</span>
+                </div>
+                <div class="flex justify-between py-1.5 border-b border-slate-50">
+                    <span class="text-slate-400 font-medium">Type</span>
+                    <span class="text-slate-700 text-right" id="prev-type">OIDC</span>
+                </div>
+                <div class="flex justify-between py-1.5 border-b border-slate-50">
+                    <span class="text-slate-400 font-medium">Tenant</span>
+                    <span class="text-slate-700 text-right" id="prev-tenant">Single-Tenant</span>
+                </div>
+                <div class="flex justify-between py-1.5">
+                    <span class="text-slate-400 font-medium">Owners</span>
+                    <span class="text-slate-700 text-right" id="prev-owners">—</span>
+                </div>
+            </div>
+
+            <!-- Progress -->
+            <div id="m-progress-section" class="hidden mb-4">
+                <div class="flex justify-between items-center mb-1.5">
+                    <span id="m-current-step" class="text-xs text-slate-600">Initializing...</span>
+                    <span id="m-progress-percent" class="text-xs font-bold text-violet-600">0%</span>
+                </div>
+                <div class="w-full bg-slate-100 rounded-full h-2.5">
+                    <div id="m-progress-bar" class="h-2.5 rounded-full transition-all duration-500"
+                         style="width:0%;background:linear-gradient(90deg,#7c3aed,#a855f7)"></div>
+                </div>
+            </div>
+
+            <!-- Execution Logs -->
+            <div id="m-execution-logs"
+                 class="bg-gray-950 text-green-400 p-3 rounded-xl font-mono text-xs min-h-24 max-h-48 overflow-y-auto scrollbar-thin mb-4">
+                <div class="text-slate-500">
+                    <i class="fas fa-info-circle mr-1"></i>Click Submit to begin...
+                </div>
+            </div>
+
+            <!-- App Details after success -->
+            <div id="m-app-details" class="hidden mb-4"></div>
+
+            <!-- Status + Submit -->
+            <div class="space-y-3">
+                <div class="flex items-center space-x-2 px-3 py-2 bg-slate-50 rounded-xl border border-slate-100">
+                    <div id="m-status-spinner" class="hidden animate-spin rounded-full h-4 w-4 border-2 border-violet-500 border-t-transparent"></div>
+                    <div class="min-w-0">
+                        <p id="m-status-text" class="text-xs font-semibold text-slate-700">Ready to submit</p>
+                        <p id="m-status-sub" class="text-xs text-slate-400 truncate"></p>
+                    </div>
+                </div>
+
+                <div id="m-completion-actions" class="hidden">
+                    <a href="{{ url_for('index') }}"
+                       class="w-full flex items-center justify-center space-x-2 px-4 py-2.5 bg-slate-800 text-white text-sm font-semibold rounded-xl hover:bg-slate-700 transition-colors">
+                        <i class="fas fa-home text-xs"></i><span>Back to Home</span>
+                    </a>
+                </div>
+
+                <button type="button" id="m-submit-btn" onclick="mSubmit()"
+                        class="w-full flex items-center justify-center space-x-2 py-3 px-5
+                               bg-gradient-to-r from-violet-500 to-purple-600
+                               text-white text-sm font-bold rounded-xl shadow-md
+                               hover:shadow-lg hover:shadow-purple-200 active:scale-95
+                               transition-all duration-200 disabled:opacity-50 disabled:pointer-events-none">
+                    <i class="fas fa-paper-plane text-sm"></i>
+                    <span>Create Application</span>
+                </button>
+            </div>
+        </div>
+
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+let mExecId = null;
+let mStarted = false;
+let mComplete = false;
+let mPoll = null;
+
+// ─── App Type Toggle ──────────────────────────────────────────────
+function mSelectType(type) {
+    document.getElementById('m-oidc').checked = type === 'OIDC';
+    document.getElementById('m-saml').checked = type === 'SAML';
+
+    const oidcCard = document.getElementById('m-oidc-card');
+    const samlCard = document.getElementById('m-saml-card');
+    const oidcChk  = document.getElementById('m-oidc-check');
+    const samlChk  = document.getElementById('m-saml-check');
+
+    if (type === 'OIDC') {
+        oidcCard.className = 'type-card relative flex flex-col p-5 border-2 border-azure-blue bg-blue-50 rounded-2xl cursor-pointer';
+        samlCard.className = 'type-card relative flex flex-col p-5 border-2 border-slate-200 hover:border-slate-300 rounded-2xl cursor-pointer';
+        oidcChk.className = 'w-6 h-6 rounded-full bg-azure-blue flex items-center justify-center';
+        samlChk.className = 'w-6 h-6 rounded-full bg-slate-200 hidden items-center justify-center';
+        document.getElementById('m-oidc-section').classList.remove('hidden');
+        document.getElementById('m-saml-section').classList.add('hidden');
+    } else {
+        samlCard.className = 'type-card relative flex flex-col p-5 border-2 border-emerald-500 bg-emerald-50 rounded-2xl cursor-pointer';
+        oidcCard.className = 'type-card relative flex flex-col p-5 border-2 border-slate-200 hover:border-slate-300 rounded-2xl cursor-pointer';
+        samlChk.className = 'w-6 h-6 rounded-full bg-emerald-500 flex items-center justify-center';
+        oidcChk.className = 'w-6 h-6 rounded-full bg-slate-200 hidden items-center justify-center';
+        document.getElementById('m-saml-section').classList.remove('hidden');
+        document.getElementById('m-oidc-section').classList.add('hidden');
+    }
+    updatePreview();
+}
+
+// Gallery checkbox
+document.getElementById('m-gallery-app').addEventListener('change', function() {
+    document.getElementById('m-gallery-name-field').classList.toggle('hidden', !this.checked);
+});
+
+// ─── Sync owners from individual fields ──────────────────────────
+function mSyncOwners() {
+    const fields = ['m-business-owner', 'm-tech-owner', 'm-requested-for'];
+    const owners = fields.map(id => document.getElementById(id).value.trim()).filter(Boolean);
+    document.getElementById('m-owners').value = owners.join('\n');
+    updatePreview();
+}
+
+// ─── Live preview ────────────────────────────────────────────────
+function updatePreview() {
+    const name = document.getElementById('m-app-name').value;
+    const env  = document.getElementById('m-environment').value;
+    const type = document.querySelector('input[name="app_type"]:checked')?.value || 'OIDC';
+    const tenant = document.getElementById('m-tenant').value;
+    const owners = document.getElementById('m-owners').value.trim().split('\n').filter(Boolean);
+
+    document.getElementById('prev-name').textContent = name || '—';
+    document.getElementById('prev-env').textContent  = env  || '—';
+    document.getElementById('prev-type').textContent = type;
+    document.getElementById('prev-tenant').textContent = type === 'OIDC' ? tenant : 'N/A';
+    document.getElementById('prev-owners').textContent = owners.length ? `${owners.length} owner(s)` : '—';
+}
+
+// Live preview listeners
+['m-app-name','m-environment','m-owners','m-tenant'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.addEventListener('input', updatePreview);
+});
+
+// ─── Submit ───────────────────────────────────────────────────────
+function mSubmit() {
+    if (mStarted) return;
+
+    const appType = document.querySelector('input[name="app_type"]:checked')?.value;
+    const appName = document.getElementById('m-app-name').value.trim();
+    const owners  = document.getElementById('m-owners').value.trim().split('\n').map(s=>s.trim()).filter(Boolean);
+
+    if (!appName) { mAddLog('⚠️ Application name is required.', 'error'); return; }
+    if (!owners.length) { mAddLog('⚠️ At least one owner email is required.', 'error'); return; }
+
+    mStarted = true;
+    const btn = document.getElementById('m-submit-btn');
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i><span>Creating...</span>';
+    btn.disabled = true;
+
+    document.getElementById('m-status-spinner').classList.remove('hidden');
+    document.getElementById('m-status-text').textContent = 'Starting execution...';
+    document.getElementById('m-progress-section').classList.remove('hidden');
+    mClearLogs();
+    mAddLog('🚀 Execution started...', 'info');
+
+    const payload = {
+        app_type: appType,
+        app_name: appName,
+        owners: owners,
+        tenant: document.getElementById('m-tenant')?.value || 'Single-Tenant',
+        redirect_urls: (document.getElementById('m-redirect-urls')?.value || '').split('\n').map(s=>s.trim()).filter(Boolean),
+        gallery_app: document.getElementById('m-gallery-app')?.checked || false,
+        gallery_name: document.getElementById('m-gallery-name')?.value || '',
+    };
+
+    fetch('/onboard/submit', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.success && data.execution_id) {
+            mExecId = data.execution_id;
+            mPoll = setInterval(() => mPollStatus(data.execution_id), 600);
+        } else {
+            mHandleError(data.error || 'Failed to start execution.');
+        }
+    })
+    .catch(err => mHandleError('Network error: ' + err.message));
+}
+
+function mPollStatus(eid) {
+    fetch(`/execution_status/${eid}`)
+        .then(r => r.json())
+        .then(data => {
+            if (data.error) { clearInterval(mPoll); mHandleError(data.error); return; }
+            mUpdateProgress(data.current_step || '', data.progress || 0);
+            mRenderLogs(data.logs || []);
+            if (data.status === 'completed') { clearInterval(mPoll); mHandleComplete(true, data.result); }
+            else if (data.status === 'error') { clearInterval(mPoll); mHandleComplete(false, data.error); }
+        })
+        .catch(e => console.error('Poll error:', e));
+}
+
+function mUpdateProgress(step, pct) {
+    document.getElementById('m-current-step').textContent = step;
+    document.getElementById('m-progress-bar').style.width = pct + '%';
+    document.getElementById('m-progress-percent').textContent = pct + '%';
+}
+
+function mRenderLogs(logs) {
+    const c = document.getElementById('m-execution-logs');
+    c.innerHTML = '';
+    logs.forEach(log => {
+        const d = document.createElement('div');
+        d.className = 'mb-1';
+        const colors = { error:'text-red-400', success:'text-green-400', info:'text-blue-400' };
+        d.innerHTML = `<span class="text-slate-500">[${log.timestamp}]</span> <span class="${colors[log.type]||'text-slate-300'}">${log.message}</span>`;
+        c.appendChild(d);
+    });
+    c.scrollTop = c.scrollHeight;
+}
+
+function mAddLog(msg, type='info') {
+    const c = document.getElementById('m-execution-logs');
+    const d = document.createElement('div');
+    d.className = 'mb-1';
+    const colors = { error:'text-red-400', success:'text-green-400', info:'text-blue-400' };
+    d.innerHTML = `<span class="text-slate-500">[${new Date().toLocaleTimeString()}]</span> <span class="${colors[type]||'text-slate-300'}">${msg}</span>`;
+    if (c.children.length === 1 && c.firstChild.textContent.includes('Click Submit')) c.innerHTML = '';
+    c.appendChild(d);
+    c.scrollTop = c.scrollHeight;
+}
+
+function mClearLogs() { document.getElementById('m-execution-logs').innerHTML = ''; }
+
+function mHandleComplete(success, result) {
+    mComplete = true;
+    document.getElementById('m-status-spinner').classList.add('hidden');
+    const txt = document.getElementById('m-status-text');
+    const sub = document.getElementById('m-status-sub');
+    document.getElementById('m-submit-btn').classList.add('hidden');
+    document.getElementById('m-completion-actions').classList.remove('hidden');
+
+    if (success) {
+        txt.textContent = '✅ App created!';
+        txt.className = 'text-xs font-semibold text-emerald-600';
+        sub.textContent = 'Registered in Azure Entra ID.';
+        mUpdateProgress('Completed!', 100);
+        if (result) {
+            const det = document.getElementById('m-app-details');
+            det.classList.remove('hidden');
+            det.innerHTML = mBuildDetails(result);
+        }
+        mShowToast('✅ Application created in Entra ID!', 'success');
+    } else {
+        txt.textContent = '❌ Failed';
+        txt.className = 'text-xs font-semibold text-red-600';
+        sub.textContent = typeof result === 'string' ? result : 'An error occurred.';
+        mUpdateProgress('Failed', 100);
+        mShowToast('❌ Creation failed.', 'error');
+    }
+}
+
+function mHandleError(msg) {
+    mComplete = true;
+    document.getElementById('m-status-spinner').classList.add('hidden');
+    document.getElementById('m-status-text').textContent = 'Failed';
+    document.getElementById('m-status-text').className = 'text-xs font-semibold text-red-600';
+    document.getElementById('m-status-sub').textContent = msg;
+    document.getElementById('m-submit-btn').classList.add('hidden');
+    document.getElementById('m-completion-actions').classList.remove('hidden');
+    mAddLog(`❌ ${msg}`, 'error');
+}
+
+function mBuildDetails(r) {
+    let h = '<div class="text-xs space-y-2">';
+    if (r.app_registration) {
+        const a = r.app_registration;
+        h += `<div class="bg-blue-50 p-3 rounded-xl border border-blue-100">
+            <p class="font-bold text-blue-800 mb-1.5">App Registration</p>
+            <div class="space-y-1">
+                <div><span class="text-slate-500">Client ID: </span><span class="font-mono text-slate-800">${a.client_id||'N/A'}</span></div>
+                <div><span class="text-slate-500">Object ID: </span><span class="font-mono text-slate-800">${a.id||'N/A'}</span></div>
+            </div>
+        </div>`;
+    }
+    if (r.service_principal) {
+        const sp = r.service_principal;
+        h += `<div class="bg-emerald-50 p-3 rounded-xl border border-emerald-100">
+            <p class="font-bold text-emerald-800 mb-1.5">Enterprise App</p>
+            <div class="space-y-1">
+                <div><span class="text-slate-500">App ID: </span><span class="font-mono text-slate-800">${sp.app_id||'N/A'}</span></div>
+            </div>
+        </div>`;
+    }
+    h += '</div>';
+    return h;
+}
+
+function mShowToast(msg, type) {
+    const t = document.createElement('div');
+    const col = type === 'success' ? 'bg-emerald-600' : 'bg-red-600';
+    t.className = `fixed top-5 right-5 z-50 px-5 py-3 rounded-xl shadow-xl ${col} text-white text-sm font-semibold flex items-center space-x-2 animate-slide-up`;
+    t.innerHTML = `<span>${msg}</span><button onclick="this.parentElement.remove()" class="ml-3 opacity-70 hover:opacity-100">✕</button>`;
+    document.body.appendChild(t);
+    setTimeout(() => { t.style.opacity='0'; t.style.transition='opacity 0.4s'; setTimeout(()=>t.remove(),400); }, 5000);
+}
+</script>
+{% endblock %}

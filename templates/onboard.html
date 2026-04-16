@@ -1,0 +1,222 @@
+{% extends "base.html" %}
+
+{% block title %}App Onboarding Hub — Azure AD{% endblock %}
+
+{% block content %}
+<!-- Hero Section -->
+<div class="relative overflow-hidden rounded-3xl mb-10"
+     style="background: linear-gradient(135deg, #0f172a 0%, #1e3a5f 55%, #0078d4 100%);">
+    <div class="absolute inset-0 opacity-10"
+         style="background-image: radial-gradient(circle at 20% 50%, #60a5fa 0%, transparent 50%), radial-gradient(circle at 80% 20%, #818cf8 0%, transparent 40%);"></div>
+    <!-- Decorative circles -->
+    <div class="absolute -top-16 -right-16 w-64 h-64 rounded-full bg-blue-500/10 blur-3xl"></div>
+    <div class="absolute -bottom-12 -left-12 w-48 h-48 rounded-full bg-indigo-500/10 blur-3xl"></div>
+
+    <div class="relative px-10 py-14">
+        <div class="flex items-center space-x-3 mb-4">
+            <div class="w-12 h-12 rounded-2xl bg-white/10 backdrop-blur flex items-center justify-center">
+                <i class="fab fa-microsoft text-white text-2xl"></i>
+            </div>
+            <div>
+                <p class="text-blue-200 text-sm font-medium uppercase tracking-widest">Microsoft Entra ID</p>
+                <h1 class="text-white text-3xl font-extrabold tracking-tight">App Onboarding Hub</h1>
+            </div>
+        </div>
+        <p class="text-blue-100/80 text-base max-w-2xl">
+            Streamline Azure AD application registration with ServiceNow integration.
+            Fetch RITM ticket data automatically, or onboard apps manually — your choice.
+        </p>
+
+        <!-- Stats row -->
+        <div class="flex items-center space-x-6 mt-8">
+            <div class="flex items-center space-x-2 text-blue-200/70 text-sm">
+                <i class="fas fa-bolt text-yellow-300"></i>
+                <span>Auto-fills form from RITM</span>
+            </div>
+            <div class="w-px h-4 bg-white/20"></div>
+            <div class="flex items-center space-x-2 text-blue-200/70 text-sm">
+                <i class="fas fa-shield-alt text-green-300"></i>
+                <span>SAML &amp; OIDC supported</span>
+            </div>
+            <div class="w-px h-4 bg-white/20"></div>
+            <div class="flex items-center space-x-2 text-blue-200/70 text-sm">
+                <i class="fas fa-users text-purple-300"></i>
+                <span>Auto-assigns owners</span>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Mode Selection Cards -->
+<h2 class="text-slate-700 font-semibold text-lg mb-5">
+    <i class="fas fa-th-large mr-2 text-azure-blue"></i>Choose Your Onboarding Method
+</h2>
+
+<div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-12">
+
+    <!-- Card 1 ── RITM -->
+    <a href="{{ url_for('ritm_onboard') }}"
+       class="group relative bg-white rounded-2xl shadow-sm hover:shadow-xl border border-slate-100 hover:border-green-200 p-8 transition-all duration-300 hover:-translate-y-1 overflow-hidden cursor-pointer">
+        <!-- Accent bar -->
+        <div class="absolute top-0 left-0 right-0 h-1 rounded-t-2xl bg-gradient-to-r from-emerald-400 to-teal-500"></div>
+        <!-- Background glow on hover -->
+        <div class="absolute inset-0 bg-gradient-to-br from-emerald-50 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 rounded-2xl"></div>
+
+        <div class="relative">
+            <!-- Icon -->
+            <div class="w-14 h-14 rounded-2xl bg-emerald-100 flex items-center justify-center mb-5 group-hover:scale-110 transition-transform duration-300">
+                <i class="fas fa-ticket-alt text-emerald-600 text-2xl"></i>
+            </div>
+
+            <div class="flex items-center justify-between mb-2">
+                <h3 class="text-slate-900 font-bold text-xl">RITM Onboarding</h3>
+                <span class="px-2 py-0.5 bg-emerald-100 text-emerald-700 text-xs font-semibold rounded-full">Recommended</span>
+            </div>
+            <p class="text-slate-500 text-sm leading-relaxed mb-6">
+                Enter a ServiceNow RITM number to fetch all ticket details and automatically pre-fill the onboarding form.
+            </p>
+
+            <!-- Steps -->
+            <div class="space-y-2.5">
+                <div class="flex items-center space-x-2.5 text-slate-600 text-sm">
+                    <div class="w-6 h-6 rounded-full bg-emerald-500 text-white flex items-center justify-center text-xs font-bold flex-shrink-0">1</div>
+                    <span>Enter your RITM number</span>
+                </div>
+                <div class="flex items-center space-x-2.5 text-slate-600 text-sm">
+                    <div class="w-6 h-6 rounded-full bg-emerald-500 text-white flex items-center justify-center text-xs font-bold flex-shrink-0">2</div>
+                    <span>Verify auto-filled data from ServiceNow</span>
+                </div>
+                <div class="flex items-center space-x-2.5 text-slate-600 text-sm">
+                    <div class="w-6 h-6 rounded-full bg-emerald-500 text-white flex items-center justify-center text-xs font-bold flex-shrink-0">3</div>
+                    <span>Submit to create app in Entra</span>
+                </div>
+            </div>
+
+            <!-- CTA -->
+            <div class="mt-6 flex items-center text-emerald-600 font-semibold text-sm group-hover:translate-x-1 transition-transform duration-200">
+                <span>Start with RITM</span>
+                <i class="fas fa-arrow-right ml-2"></i>
+            </div>
+        </div>
+    </a>
+
+    <!-- Card 2 ── Manual -->
+    <a href="{{ url_for('manual_onboard') }}"
+       class="group relative bg-white rounded-2xl shadow-sm hover:shadow-xl border border-slate-100 hover:border-violet-200 p-8 transition-all duration-300 hover:-translate-y-1 overflow-hidden cursor-pointer">
+        <div class="absolute top-0 left-0 right-0 h-1 rounded-t-2xl bg-gradient-to-r from-violet-400 to-purple-500"></div>
+        <div class="absolute inset-0 bg-gradient-to-br from-violet-50 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 rounded-2xl"></div>
+
+        <div class="relative">
+            <div class="w-14 h-14 rounded-2xl bg-violet-100 flex items-center justify-center mb-5 group-hover:scale-110 transition-transform duration-300">
+                <i class="fas fa-edit text-violet-600 text-2xl"></i>
+            </div>
+
+            <div class="flex items-center justify-between mb-2">
+                <h3 class="text-slate-900 font-bold text-xl">Manual Onboarding</h3>
+                <span class="px-2 py-0.5 bg-violet-100 text-violet-700 text-xs font-semibold rounded-full">No RITM needed</span>
+            </div>
+            <p class="text-slate-500 text-sm leading-relaxed mb-6">
+                Fill out the onboarding form manually. No ServiceNow ticket required — ideal for quick app registrations.
+            </p>
+
+            <div class="space-y-2.5">
+                <div class="flex items-center space-x-2.5 text-slate-600 text-sm">
+                    <div class="w-6 h-6 rounded-full bg-violet-500 text-white flex items-center justify-center text-xs font-bold flex-shrink-0">1</div>
+                    <span>Fill in application details</span>
+                </div>
+                <div class="flex items-center space-x-2.5 text-slate-600 text-sm">
+                    <div class="w-6 h-6 rounded-full bg-violet-500 text-white flex items-center justify-center text-xs font-bold flex-shrink-0">2</div>
+                    <span>Choose SAML or OIDC type</span>
+                </div>
+                <div class="flex items-center space-x-2.5 text-slate-600 text-sm">
+                    <div class="w-6 h-6 rounded-full bg-violet-500 text-white flex items-center justify-center text-xs font-bold flex-shrink-0">3</div>
+                    <span>Submit to create app in Entra</span>
+                </div>
+            </div>
+
+            <div class="mt-6 flex items-center text-violet-600 font-semibold text-sm group-hover:translate-x-1 transition-transform duration-200">
+                <span>Start manually</span>
+                <i class="fas fa-arrow-right ml-2"></i>
+            </div>
+        </div>
+    </a>
+
+    <!-- Card 3 ── Excel -->
+    <a href="{{ url_for('excel_home') }}"
+       class="group relative bg-white rounded-2xl shadow-sm hover:shadow-xl border border-slate-100 hover:border-blue-200 p-8 transition-all duration-300 hover:-translate-y-1 overflow-hidden cursor-pointer">
+        <div class="absolute top-0 left-0 right-0 h-1 rounded-t-2xl bg-gradient-to-r from-blue-400 to-azure-blue"></div>
+        <div class="absolute inset-0 bg-gradient-to-br from-blue-50 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 rounded-2xl"></div>
+
+        <div class="relative">
+            <div class="w-14 h-14 rounded-2xl bg-blue-100 flex items-center justify-center mb-5 group-hover:scale-110 transition-transform duration-300">
+                <i class="fas fa-file-excel text-blue-600 text-2xl"></i>
+            </div>
+
+            <div class="flex items-center justify-between mb-2">
+                <h3 class="text-slate-900 font-bold text-xl">Bulk Excel Upload</h3>
+                <span class="px-2 py-0.5 bg-blue-100 text-blue-700 text-xs font-semibold rounded-full">Batch mode</span>
+            </div>
+            <p class="text-slate-500 text-sm leading-relaxed mb-6">
+                Upload an Excel spreadsheet with multiple apps. Review and execute each row sequentially for bulk provisioning.
+            </p>
+
+            <div class="space-y-2.5">
+                <div class="flex items-center space-x-2.5 text-slate-600 text-sm">
+                    <div class="w-6 h-6 rounded-full bg-blue-500 text-white flex items-center justify-center text-xs font-bold flex-shrink-0">1</div>
+                    <span>Upload .xlsx / .xls file</span>
+                </div>
+                <div class="flex items-center space-x-2.5 text-slate-600 text-sm">
+                    <div class="w-6 h-6 rounded-full bg-blue-500 text-white flex items-center justify-center text-xs font-bold flex-shrink-0">2</div>
+                    <span>Review each app row-by-row</span>
+                </div>
+                <div class="flex items-center space-x-2.5 text-slate-600 text-sm">
+                    <div class="w-6 h-6 rounded-full bg-blue-500 text-white flex items-center justify-center text-xs font-bold flex-shrink-0">3</div>
+                    <span>View summary &amp; download results</span>
+                </div>
+            </div>
+
+            <div class="mt-6 flex items-center text-blue-600 font-semibold text-sm group-hover:translate-x-1 transition-transform duration-200">
+                <span>Upload Excel</span>
+                <i class="fas fa-arrow-right ml-2"></i>
+            </div>
+        </div>
+    </a>
+</div>
+
+<!-- How It Works -->
+<div class="bg-white rounded-2xl border border-slate-100 shadow-sm p-8 mb-8">
+    <h2 class="text-slate-800 font-bold text-lg mb-6 flex items-center">
+        <i class="fas fa-info-circle text-azure-blue mr-2"></i>What This Tool Creates
+    </h2>
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+        <div>
+            <div class="flex items-center space-x-3 mb-3">
+                <div class="w-8 h-8 rounded-lg bg-blue-100 flex items-center justify-center">
+                    <i class="fas fa-key text-blue-600 text-sm"></i>
+                </div>
+                <h3 class="font-semibold text-slate-800">OIDC App Registrations</h3>
+            </div>
+            <ul class="space-y-1.5 text-slate-500 text-sm pl-11">
+                <li class="flex items-center space-x-2"><i class="fas fa-check text-blue-400 text-xs"></i><span>Creates App Registrations in Entra ID</span></li>
+                <li class="flex items-center space-x-2"><i class="fas fa-check text-blue-400 text-xs"></i><span>Configures redirect URLs automatically</span></li>
+                <li class="flex items-center space-x-2"><i class="fas fa-check text-blue-400 text-xs"></i><span>Sets single or multi-tenant scope</span></li>
+                <li class="flex items-center space-x-2"><i class="fas fa-check text-blue-400 text-xs"></i><span>Assigns owners from RITM ticket</span></li>
+            </ul>
+        </div>
+        <div>
+            <div class="flex items-center space-x-3 mb-3">
+                <div class="w-8 h-8 rounded-lg bg-emerald-100 flex items-center justify-center">
+                    <i class="fas fa-shield-alt text-emerald-600 text-sm"></i>
+                </div>
+                <h3 class="font-semibold text-slate-800">SAML Enterprise Applications</h3>
+            </div>
+            <ul class="space-y-1.5 text-slate-500 text-sm pl-11">
+                <li class="flex items-center space-x-2"><i class="fas fa-check text-emerald-400 text-xs"></i><span>Creates Enterprise Applications (SAML)</span></li>
+                <li class="flex items-center space-x-2"><i class="fas fa-check text-emerald-400 text-xs"></i><span>Searches Azure AD Gallery apps</span></li>
+                <li class="flex items-center space-x-2"><i class="fas fa-check text-emerald-400 text-xs"></i><span>Supports custom non-gallery apps</span></li>
+                <li class="flex items-center space-x-2"><i class="fas fa-check text-emerald-400 text-xs"></i><span>Manages service principals &amp; owners</span></li>
+            </ul>
+        </div>
+    </div>
+</div>
+{% endblock %}

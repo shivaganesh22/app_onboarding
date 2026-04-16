@@ -5,42 +5,92 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}Azure AD App Onboarding{% endblock %}</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
     <script>
         tailwind.config = {
             theme: {
                 extend: {
                     colors: {
                         'azure-blue': '#0078d4',
-                        'azure-dark': '#106ebe'
+                        'azure-dark': '#106ebe',
+                        'azure-light': '#50a8f5',
+                        'snow-green': '#00c27a',
+                        'snow-dark': '#00996a',
+                    },
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                    },
+                    animation: {
+                        'fade-in': 'fadeIn 0.4s ease-out',
+                        'slide-up': 'slideUp 0.4s ease-out',
+                        'pulse-slow': 'pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+                    },
+                    keyframes: {
+                        fadeIn: { '0%': { opacity: '0' }, '100%': { opacity: '1' } },
+                        slideUp: { '0%': { opacity: '0', transform: 'translateY(20px)' }, '100%': { opacity: '1', transform: 'translateY(0)' } },
                     }
                 }
             }
         }
     </script>
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+        .glass { background: rgba(255,255,255,0.07); backdrop-filter: blur(12px); border: 1px solid rgba(255,255,255,0.12); }
+        .nav-gradient { background: linear-gradient(135deg, #0f172a 0%, #1e3a5f 50%, #0078d4 100%); }
+        .scrollbar-thin::-webkit-scrollbar { width: 4px; }
+        .scrollbar-thin::-webkit-scrollbar-track { background: #1f2937; border-radius: 2px; }
+        .scrollbar-thin::-webkit-scrollbar-thumb { background: #4b5563; border-radius: 2px; }
+        input, select, textarea { font-family: 'Inter', sans-serif !important; }
+    </style>
+    {% block extra_head %}{% endblock %}
 </head>
-<body class="bg-gray-50 min-h-screen">
+<body class="bg-slate-50 min-h-screen font-sans">
+
     <!-- Navigation -->
-    <nav class="bg-azure-blue shadow-lg">
-        <div class="max-w-7xl mx-auto px-4">
+    <nav class="nav-gradient shadow-xl">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div class="flex justify-between h-16">
-                <div class="flex items-center">
-                    <i class="fas fa-cloud text-white text-2xl mr-3"></i>
-                    <span class="font-bold text-xl text-white">Azure AD App Onboarding</span>
+                <!-- Brand -->
+                <div class="flex items-center space-x-3">
+                    <div class="w-9 h-9 rounded-lg bg-white/10 flex items-center justify-center">
+                        <i class="fas fa-cloud-upload-alt text-white text-lg"></i>
+                    </div>
+                    <div>
+                        <a href="{{ url_for('index') }}" class="font-bold text-white text-lg tracking-tight leading-none">Azure AD</a>
+                        <p class="text-blue-200 text-xs font-medium">App Onboarding</p>
+                    </div>
                 </div>
-                <div class="flex items-center space-x-4">
-                    <a href="{{ url_for('index') }}" class="text-white hover:text-blue-200 px-3 py-2 rounded-md text-sm font-medium">
-                        <i class="fas fa-home mr-1"></i>Home
+
+                <!-- Nav Links -->
+                <div class="flex items-center space-x-1">
+                    <a href="{{ url_for('index') }}"
+                       class="flex items-center space-x-1.5 text-white/80 hover:text-white hover:bg-white/10 px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200">
+                        <i class="fas fa-home text-xs"></i><span>Home</span>
+                    </a>
+                    <a href="{{ url_for('ritm_onboard') }}"
+                       class="flex items-center space-x-1.5 text-white/80 hover:text-white hover:bg-white/10 px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200">
+                        <i class="fas fa-ticket-alt text-xs"></i><span>RITM</span>
+                    </a>
+                    <a href="{{ url_for('manual_onboard') }}"
+                       class="flex items-center space-x-1.5 text-white/80 hover:text-white hover:bg-white/10 px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200">
+                        <i class="fas fa-edit text-xs"></i><span>Manual</span>
+                    </a>
+                    <a href="{{ url_for('excel_home') }}"
+                       class="flex items-center space-x-1.5 text-white/80 hover:text-white hover:bg-white/10 px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200">
+                        <i class="fas fa-file-excel text-xs"></i><span>Excel</span>
                     </a>
                     {% if session.processed_data %}
-                    <a href="{{ url_for('review') }}" class="text-white hover:text-blue-200 px-3 py-2 rounded-md text-sm font-medium">
-                        <i class="fas fa-tasks mr-1"></i>Review ({{ session.get('current_index', 0) + 1 }}/{{ session.processed_data|length }})
+                    <a href="{{ url_for('review') }}"
+                       class="flex items-center space-x-1.5 text-white/80 hover:text-white hover:bg-white/10 px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200">
+                        <i class="fas fa-tasks text-xs"></i>
+                        <span>Review <span class="bg-azure-blue px-1.5 py-0.5 rounded-full text-xs">{{ session.get('current_index', 0) + 1 }}/{{ session.processed_data|length }}</span></span>
                     </a>
-                    <a href="{{ url_for('summary') }}" class="text-white hover:text-blue-200 px-3 py-2 rounded-md text-sm font-medium">
-                        <i class="fas fa-chart-bar mr-1"></i>Summary
-                    </a>
-                    <a href="{{ url_for('reset') }}" class="text-white hover:text-blue-200 px-3 py-2 rounded-md text-sm font-medium">
-                        <i class="fas fa-refresh mr-1"></i>Reset
+                    <a href="{{ url_for('reset') }}"
+                       class="flex items-center space-x-1.5 text-red-300/80 hover:text-red-200 hover:bg-red-900/20 px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200">
+                        <i class="fas fa-redo text-xs"></i><span>Reset</span>
                     </a>
                     {% endif %}
                 </div>
@@ -51,11 +101,17 @@
     <!-- Flash Messages -->
     {% with messages = get_flashed_messages(with_categories=true) %}
         {% if messages %}
-            <div class="max-w-7xl mx-auto px-4 py-4">
+            <div class="max-w-7xl mx-auto px-4 pt-4">
                 {% for category, message in messages %}
-                    <div class="alert alert-{{ 'danger' if category == 'error' else category }} bg-{{ 'red' if category == 'error' else 'green' }}-100 border border-{{ 'red' if category == 'error' else 'green' }}-400 text-{{ 'red' if category == 'error' else 'green' }}-700 px-4 py-3 rounded mb-4">
-                        <i class="fas fa-{{ 'exclamation-triangle' if category == 'error' else 'check-circle' }} mr-2"></i>
-                        {{ message }}
+                    <div class="alert flex items-center space-x-3 px-4 py-3 rounded-xl mb-3 shadow-sm border
+                        {% if category == 'error' %}bg-red-50 border-red-200 text-red-700
+                        {% else %}bg-green-50 border-green-200 text-green-700{% endif %}
+                        animate-fade-in">
+                        <i class="fas {% if category == 'error' %}fa-exclamation-circle text-red-500{% else %}fa-check-circle text-green-500{% endif %}"></i>
+                        <span class="text-sm font-medium">{{ message }}</span>
+                        <button onclick="this.closest('.alert').remove()" class="ml-auto text-gray-400 hover:text-gray-600">
+                            <i class="fas fa-times text-xs"></i>
+                        </button>
                     </div>
                 {% endfor %}
             </div>
@@ -63,29 +119,34 @@
     {% endwith %}
 
     <!-- Main Content -->
-    <main class="max-w-7xl mx-auto py-6 px-4">
+    <main class="max-w-7xl mx-auto py-8 px-4 sm:px-6 lg:px-8">
         {% block content %}{% endblock %}
     </main>
 
     <!-- Footer -->
-    <footer class="bg-white border-t border-gray-200 mt-12">
-        <div class="max-w-7xl mx-auto py-4 px-4 text-center text-gray-600">
-            <p>&copy; 2024 Azure AD App Onboarding Tool. Built with Flask & Tailwind CSS.</p>
+    <footer class="border-t border-slate-200 bg-white mt-12">
+        <div class="max-w-7xl mx-auto py-4 px-4 flex items-center justify-between text-slate-400 text-xs">
+            <span>© 2025 Azure AD App Onboarding Tool</span>
+            <span class="flex items-center space-x-1">
+                <i class="fas fa-flask"></i><span>Flask</span>
+                <span class="mx-1">·</span>
+                <i class="fas fa-wind"></i><span>Tailwind CSS</span>
+                <span class="mx-1">·</span>
+                <i class="fab fa-microsoft"></i><span>Microsoft Graph</span>
+            </span>
         </div>
     </footer>
 
     <script>
         // Auto-hide flash messages after 5 seconds
         setTimeout(function() {
-            const alerts = document.querySelectorAll('.alert');
-            alerts.forEach(function(alert) {
-                alert.style.transition = 'opacity 0.5s';
-                alert.style.opacity = '0';
-                setTimeout(function() {
-                    alert.remove();
-                }, 500);
+            document.querySelectorAll('.alert').forEach(function(el) {
+                el.style.transition = 'opacity 0.5s';
+                el.style.opacity = '0';
+                setTimeout(() => el.remove(), 500);
             });
         }, 5000);
     </script>
+    {% block extra_scripts %}{% endblock %}
 </body>
 </html>

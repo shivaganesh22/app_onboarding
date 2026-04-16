@@ -1,11 +1,27 @@
 {% extends "base.html" %}
 
-{% block title %}Upload Excel File - Azure AD App Onboarding{% endblock %}
+{% block title %}Excel Bulk Upload — Azure AD App Onboarding{% endblock %}
+
+{% block extra_head %}
+<style>
+    .drop-zone-active { border-color:#0078d4 !important; background:#eff6ff; }
+</style>
+{% endblock %}
 
 {% block content %}
-<div class="min-h-screen flex items-center justify-center">
-    <div class="max-w-4xl w-full">
-        <div class="bg-white shadow-2xl rounded-lg p-8">
+<!-- Header -->
+<div class="flex items-center space-x-3 mb-6 animate-slide-up">
+    <a href="{{ url_for('index') }}" class="w-9 h-9 rounded-xl bg-slate-100 hover:bg-slate-200 flex items-center justify-center transition-colors">
+        <i class="fas fa-arrow-left text-slate-600 text-sm"></i>
+    </a>
+    <div>
+        <h1 class="text-2xl font-extrabold text-slate-900">Bulk Excel Upload</h1>
+        <p class="text-slate-500 text-sm">Upload an Excel sheet to process multiple app onboardings at once</p>
+    </div>
+</div>
+
+<div class="max-w-3xl mx-auto">
+    <div class="bg-white shadow-sm rounded-2xl border border-slate-100 p-8 animate-slide-up">
             <div class="text-center mb-8">
                 <i class="fas fa-file-upload text-6xl text-azure-blue mb-4"></i>
                 <h1 class="text-3xl font-bold text-gray-900 mb-2">Azure AD App Onboarding</h1>
@@ -116,6 +132,9 @@
         </div>
     </div>
 </div>
+{% endblock %}
+
+{% block extra_scripts %}
 
 <script>
     // File upload drag and drop functionality (same as before)
