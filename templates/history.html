@@ -1,0 +1,236 @@
+{% extends "base.html" %}
+{% block title %}History — Azure AD App Onboarding{% endblock %}
+
+{% block extra_head %}
+<style>
+  .section-card { background:#fff; border:1px solid #e2e8f0; border-radius:12px; box-shadow:0 1px 3px rgba(0,0,0,.07); }
+  .log-terminal { font-family:'Courier New',monospace; height:220px; overflow-y:auto; }
+  .log-terminal::-webkit-scrollbar { width:4px; }
+  .log-terminal::-webkit-scrollbar-thumb { background:#4b5563; border-radius:2px; }
+  .badge { display:inline-flex; align-items:center; gap:4px; border-radius:999px; padding:2px 10px; font-size:.7rem; font-weight:700; }
+  .detail-row { display:flex; gap:8px; padding:5px 0; border-bottom:1px solid #f1f5f9; font-size:.8rem; }
+  .detail-row:last-child { border-bottom:none; }
+  .detail-label { font-weight:600; color:#64748b; width:140px; flex-shrink:0; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="animate-fade-in">
+  <!-- Header -->
+  <div class="flex items-center justify-between mb-6">
+    <div>
+      <h1 class="text-2xl font-bold text-slate-800 flex items-center gap-2">
+        <i class="fas fa-history text-blue-500"></i> Onboarding History
+      </h1>
+      <p class="text-slate-500 text-sm mt-1">All onboarding operations from this browser session</p>
+    </div>
+    <div class="flex gap-3">
+      <input id="historySearch" type="text" placeholder="Search by app name or RITM..."
+        oninput="renderHistory()"
+        class="border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 w-64">
+      <button onclick="clearHistory()"
+        class="flex items-center gap-2 bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 font-semibold px-4 py-2 rounded-xl transition text-sm">
+        <i class="fas fa-trash"></i> Clear All
+      </button>
+    </div>
+  </div>
+
+  <!-- Stats -->
+  <div class="grid grid-cols-4 gap-4 mb-6" id="statsBar"></div>
+
+  <!-- History List -->
+  <div id="historyList" class="space-y-4"></div>
+
+  <!-- Empty State -->
+  <div id="emptyState" class="hidden text-center py-24">
+    <div class="w-16 h-16 rounded-full bg-slate-100 flex items-center justify-center mx-auto mb-4">
+      <i class="fas fa-history text-slate-300 text-2xl"></i>
+    </div>
+    <h3 class="text-slate-400 font-semibold">No History Yet</h3>
+    <p class="text-slate-300 text-sm mt-1">Complete an onboarding via RITM or Manual to see records here.</p>
+    <a href="{{ url_for('index') }}" class="inline-flex items-center gap-2 mt-4 bg-blue-600 text-white text-sm font-semibold px-5 py-2 rounded-xl hover:bg-blue-700 transition">
+      <i class="fas fa-plus"></i> Start Onboarding
+    </a>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+function getHistory() {
+  return JSON.parse(localStorage.getItem('onboarding_history') || '[]');
+}
+
+function renderHistory() {
+  const query = document.getElementById('historySearch').value.toLowerCase();
+  const history = getHistory().filter(h =>
+    !query ||
+    (h.app_name||'').toLowerCase().includes(query) ||
+    (h.ritm_number||'').toLowerCase().includes(query) ||
+    (h.method||'').toLowerCase().includes(query)
+  );
+
+  // Stats
+  const total = getHistory().length;
+  const success = history.filter(h=>h.status==='completed').length;
+  const failed = history.filter(h=>h.status==='error').length;
+  const ritm = history.filter(h=>h.method==='RITM').length;
+
+  document.getElementById('statsBar').innerHTML = `
+    <div class="section-card px-4 py-3 flex items-center gap-3">
+      <div class="w-9 h-9 rounded-lg bg-blue-50 flex items-center justify-center"><i class="fas fa-list text-blue-500"></i></div>
+      <div><p class="text-xs text-slate-400">Total</p><p class="font-bold text-slate-700 text-lg">${total}</p></div>
+    </div>
+    <div class="section-card px-4 py-3 flex items-center gap-3">
+      <div class="w-9 h-9 rounded-lg bg-green-50 flex items-center justify-center"><i class="fas fa-check text-green-500"></i></div>
+      <div><p class="text-xs text-slate-400">Successful</p><p class="font-bold text-slate-700 text-lg">${success}</p></div>
+    </div>
+    <div class="section-card px-4 py-3 flex items-center gap-3">
+      <div class="w-9 h-9 rounded-lg bg-red-50 flex items-center justify-center"><i class="fas fa-times text-red-500"></i></div>
+      <div><p class="text-xs text-slate-400">Failed</p><p class="font-bold text-slate-700 text-lg">${failed}</p></div>
+    </div>
+    <div class="section-card px-4 py-3 flex items-center gap-3">
+      <div class="w-9 h-9 rounded-lg bg-purple-50 flex items-center justify-center"><i class="fas fa-ticket-alt text-purple-500"></i></div>
+      <div><p class="text-xs text-slate-400">Via RITM</p><p class="font-bold text-slate-700 text-lg">${ritm}</p></div>
+    </div>`;
+
+  const list = document.getElementById('historyList');
+  const empty = document.getElementById('emptyState');
+
+  if (history.length === 0) {
+    list.innerHTML = '';
+    empty.classList.remove('hidden');
+    return;
+  }
+  empty.classList.add('hidden');
+
+  list.innerHTML = history.map((h, idx) => {
+    const statusBadge = h.status === 'completed'
+      ? '<span class="badge bg-green-100 text-green-700"><i class="fas fa-check-circle"></i>Success</span>'
+      : '<span class="badge bg-red-100 text-red-700"><i class="fas fa-times-circle"></i>Failed</span>';
+    const methodBadge = h.method === 'RITM'
+      ? '<span class="badge bg-purple-100 text-purple-700"><i class="fas fa-ticket-alt"></i>RITM</span>'
+      : h.method === 'Manual'
+        ? '<span class="badge bg-blue-100 text-blue-700"><i class="fas fa-edit"></i>Manual</span>'
+        : '<span class="badge bg-orange-100 text-orange-700"><i class="fas fa-file-excel"></i>Excel</span>';
+    const typeBadge = h.app_type === 'SAML'
+      ? '<span class="badge bg-violet-100 text-violet-700">SAML</span>'
+      : '<span class="badge bg-cyan-100 text-cyan-700">OIDC</span>';
+
+    const ts = h.timestamp ? new Date(h.timestamp).toLocaleString() : '—';
+    const ritmLink = h.ritm_number ? `<a href="#" class="text-blue-600 text-xs font-mono hover:underline">${h.ritm_number}</a>` : '<span class="text-slate-400 text-xs">—</span>';
+
+    return `<div class="section-card overflow-hidden">
+      <div class="cursor-pointer flex items-center justify-between p-4 hover:bg-slate-50 transition"
+           onclick="toggleRecord('rec_${h.id}')">
+        <div class="flex items-center gap-3">
+          <div class="flex flex-col items-center gap-1">${methodBadge}${typeBadge}</div>
+          <div>
+            <p class="font-bold text-slate-800 text-sm">${h.app_name || '—'}</p>
+            <div class="flex items-center gap-2 mt-0.5">${ritmLink}<span class="text-slate-300 text-xs">•</span><span class="text-slate-400 text-xs">${ts}</span></div>
+          </div>
+        </div>
+        <div class="flex items-center gap-3">
+          ${statusBadge}
+          <button onclick="event.stopPropagation();exportRecord('${h.id}')" class="text-xs text-slate-400 hover:text-blue-600" title="Export JSON">
+            <i class="fas fa-download"></i>
+          </button>
+          <button onclick="event.stopPropagation();deleteRecord('${h.id}')" class="text-xs text-slate-400 hover:text-red-600" title="Delete">
+            <i class="fas fa-trash"></i>
+          </button>
+          <i class="fas fa-chevron-down text-slate-400 text-xs transition-transform" id="chev_${h.id}"></i>
+        </div>
+      </div>
+
+      <div id="rec_${h.id}" class="hidden border-t border-slate-100">
+        <div class="grid grid-cols-2 gap-0">
+          <!-- Input Details -->
+          <div class="p-4 border-r border-slate-100">
+            <p class="text-xs font-bold text-slate-500 uppercase tracking-wide mb-3">Input Details</p>
+            <div class="detail-row"><span class="detail-label">App Name</span><span>${h.app_name||'—'}</span></div>
+            <div class="detail-row"><span class="detail-label">App Type</span><span>${h.app_type||'—'}</span></div>
+            <div class="detail-row"><span class="detail-label">Method</span><span>${h.method||'—'}</span></div>
+            ${h.ritm_number ? `<div class="detail-row"><span class="detail-label">RITM</span><span class="font-mono">${h.ritm_number}</span></div>` : ''}
+            <div class="detail-row"><span class="detail-label">Owners</span><span class="text-xs font-mono">${(h.owners||[]).join(', ')||'—'}</span></div>
+            <div class="detail-row"><span class="detail-label">Status</span><span>${h.status||'—'}</span></div>
+            <div class="detail-row"><span class="detail-label">Timestamp</span><span class="text-xs">${ts}</span></div>
+          </div>
+
+          <!-- Result Details -->
+          <div class="p-4">
+            <p class="text-xs font-bold text-slate-500 uppercase tracking-wide mb-3">Result Details</p>
+            ${renderResult(h.result)}
+          </div>
+        </div>
+
+        <!-- Logs -->
+        <div class="border-t border-slate-100 p-4">
+          <p class="text-xs font-bold text-slate-500 uppercase tracking-wide mb-2">Execution Logs</p>
+          <div class="log-terminal bg-slate-900 rounded-xl p-3 text-xs">
+            ${(h.logs||[]).map(l => {
+              const colors={success:'text-green-400',error:'text-red-400',warning:'text-yellow-400',info:'text-slate-300'};
+              const ts2 = l.timestamp||'';
+              return `<div class="${colors[l.type]||'text-slate-300'} py-0.5">[${ts2}] ${l.message||''}</div>`;
+            }).join('') || '<span class="text-slate-500">No logs recorded</span>'}
+          </div>
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function renderResult(result) {
+  if (!result) return '<p class="text-xs text-slate-400 italic">No result data</p>';
+  let html = '';
+  const addRow = (l, v) => { if (!v) return; html += `<div class="detail-row"><span class="detail-label">${l}</span><span class="font-mono text-xs">${v}</span></div>`; };
+  if (result.app_registration) {
+    const ar = result.app_registration;
+    addRow('Client ID', ar.client_id);
+    addRow('Object ID', ar.id);
+    (ar.owners_added||[]).forEach(o => addRow('Owner', o));
+  }
+  if (result.service_principal) {
+    const sp = result.service_principal;
+    addRow('Enterprise App ID', sp.app_id);
+    addRow('SP Object ID', sp.id);
+    (sp.owners_added||[]).forEach(o => addRow('Owner', o));
+  }
+  if (result.federated_metadata_url) {
+    html += `<div class="detail-row"><span class="detail-label">Fed. Metadata</span><a href="${result.federated_metadata_url}" target="_blank" class="text-blue-500 underline text-xs break-all">Link</a></div>`;
+  }
+  return html || '<p class="text-xs text-slate-400 italic">No application details</p>';
+}
+
+function toggleRecord(id) {
+  const el = document.getElementById(id);
+  const chev = document.getElementById('chev_' + id.replace('rec_', ''));
+  el.classList.toggle('hidden');
+  chev.style.transform = el.classList.contains('hidden') ? '' : 'rotate(180deg)';
+}
+
+function exportRecord(id) {
+  const h = getHistory().find(r => r.id == id);
+  if (!h) return;
+  const blob = new Blob([JSON.stringify(h, null, 2)], {type:'application/json'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `onboarding_${h.app_name || id}_${h.timestamp?.slice(0,10)||'export'}.json`;
+  a.click();
+}
+
+function deleteRecord(id) {
+  if (!confirm('Delete this record?')) return;
+  const history = getHistory().filter(h => h.id != id);
+  localStorage.setItem('onboarding_history', JSON.stringify(history));
+  renderHistory();
+}
+
+function clearHistory() {
+  if (!confirm('Clear all onboarding history? This cannot be undone.')) return;
+  localStorage.removeItem('onboarding_history');
+  renderHistory();
+}
+
+renderHistory();
+</script>
+{% endblock %}

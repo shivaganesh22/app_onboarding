@@ -14,7 +14,7 @@ import sys
 
 # Add current dir to path so we can import fetch_ritm_details
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from fetch_ritm_details import ServiceNowClient, SERVICENOW_BASE_URL, SERVICENOW_USERNAME, SERVICENOW_PASSWORD, USER_REFERENCE_FIELDS
+from fetch_ritm_details import ServiceNowClient, SERVICENOW_BASE_URL, SERVICENOW_USERNAME, SERVICENOW_PASSWORD, USER_REFERENCE_FIELDS, CATALOG_VARIABLES
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'your-secret-key-change-in-production'
@@ -210,82 +210,116 @@ def _resolve_var(var_data):
     return str(var_data) if var_data else ''
 
 
+def _resolve_person(var_name, variables, client):
+    """Resolve a user reference field to {name, email, display} dict."""
+    v = variables.get(var_name, {})
+    raw_val = v.get('value', '') if isinstance(v, dict) else str(v)
+    display_val = v.get('display_value', '') if isinstance(v, dict) else ''
+    result = {'name': display_val or raw_val, 'email': '', 'sys_id': raw_val}
+    if raw_val and len(str(raw_val)) == 32:  # SNOW sys_id
+        user = client.get_user_details(raw_val)
+        if user:
+            result['name'] = user.get('name', display_val)
+            result['email'] = user.get('email', '')
+    return result
+
+
 def build_form_data_from_ritm(ritm_data, variables, client):
     """
     Map ServiceNow RITM fields → app onboarding form fields.
-    Returns a dict ready to be passed to the template / JS.
+    Returns a rich dict ready to be passed to the template / JS.
     """
     def get_var(name):
         return _resolve_var(variables.get(name, {}))
 
-    def get_var_raw(name):
-        v = variables.get(name, {})
-        if isinstance(v, dict):
-            return v.get('value') or v.get('display_value') or ''
-        return str(v) if v else ''
+    # ── Resolve people ──────────────────────────────────────────
+    people = {}
+    for field in ['requested_for', 'requested_by', 'business_owner', 'technical_owner']:
+        people[field] = _resolve_person(field, variables, client)
 
-    # Resolve user emails for owner fields
-    def resolve_email(var_name):
-        v = variables.get(var_name, {})
-        raw_val = v.get('value', '') if isinstance(v, dict) else str(v)
-        email = ''
-        if raw_val and len(str(raw_val)) == 32:
-            user_details = client.get_user_details(raw_val)
-            if user_details:
-                email = user_details.get('email', '')
-                if not email:
-                    name = user_details.get('name', '')
-                    return name  # fall back to name
-                return email
-        # Try display_value directly — might already be an email
-        dv = v.get('display_value', '') if isinstance(v, dict) else ''
-        return dv or raw_val
+    # Requested for from RITM header (fallback)
+    if not people['requested_for']['name']:
+        people['requested_for']['name'] = ritm_data.get('requested_for.name', 'N/A')
+        people['requested_for']['email'] = ritm_data.get('requested_for.email', '')
 
-    # App name + environment
+    # ── App details ───────────────────────────────────────────
     app_name_raw = get_var('app_name')
     environment = get_var('environment')
     processed_app_name = f"{app_name_raw} - {environment}" if environment else app_name_raw
 
-    # Auth method → suggest SAML or OIDC
     auth_method = get_var('auth_method')
-    app_type_raw = get_var('app_type')
-    if 'saml' in auth_method.lower() or 'sso' in auth_method.lower():
+    app_type_raw = get_var('app_type')  # 'App Registration' / 'Enterprise Application'
+
+    # Suggest SAML vs OIDC
+    if 'saml' in auth_method.lower() or 'sso' in auth_method.lower() \
+            or 'enterprise' in app_type_raw.lower():
         suggested_app_type = 'SAML'
     else:
         suggested_app_type = 'OIDC'
 
-    # Tenant scope
     tenant_scope = get_var('tenant_scope')
-    if 'multi' in tenant_scope.lower():
-        suggested_tenant = 'Multi-Tenant'
-    else:
-        suggested_tenant = 'Single-Tenant'
+    suggested_tenant = 'Multi-Tenant' if 'multi' in tenant_scope.lower() else 'Single-Tenant'
 
     # Redirect URIs
     redirect_uris_raw = get_var('redirect_uris_list')
     redirect_urls = [u.strip() for u in redirect_uris_raw.replace(',', '\n').splitlines() if u.strip()]
 
-    # Owners
+    # Owners (deduped emails)
     owners = []
     for field in ['requested_for', 'business_owner', 'technical_owner']:
-        email = resolve_email(field)
+        email = people[field].get('email', '')
         if email and email not in owners:
             owners.append(email)
 
-    # Risk assessment
-    risk_assessment = get_var('risk_assessment')
-
-    # RITM meta
+    # ── RITM meta ─────────────────────────────────────────────
     ritm_number = ritm_data.get('number', '')
+    ritm_sys_id_val = ritm_data.get('sys_id', '')
+    if isinstance(ritm_sys_id_val, dict):
+        ritm_sys_id_val = ritm_sys_id_val.get('value', '')
+    ritm_url = f"{SERVICENOW_BASE_URL}/nav_to.do?uri=sc_req_item.do?sys_id={ritm_sys_id_val}" if ritm_sys_id_val else ''
+
     ritm_state = ritm_data.get('state', 'N/A')
     ritm_opened = ritm_data.get('opened_at', 'N/A')
     ritm_priority = ritm_data.get('priority', 'N/A')
-    ritm_short_desc = ritm_data.get('short_description', '')
-    requested_for_name = ritm_data.get('requested_for.name', ritm_data.get('requested_for', 'N/A'))
     catalog_item = ritm_data.get('cat_item.name', ritm_data.get('cat_item', 'N/A'))
 
+    # ── All SNOW variables flat snapshot ─────────────────────
+    snow_vars_flat = {k: _resolve_var(v) for k, v in variables.items()}
+
+    # ── Notes (validation) ────────────────────────────────────
+    notes = []
+    risk_assessment = get_var('risk_assessment')
+    import re as _re
+    if _re.match(r'^(?!12345$)(?!.*(\d)\1{4})\d{5}$', str(risk_assessment)):
+        notes.append({'message': f'Risk Assessment # found: {risk_assessment}', 'type': 'success'})
+    elif risk_assessment:
+        notes.append({'message': f'Risk Assessment # value looks unusual: {risk_assessment} — verify before submitting', 'type': 'warning'})
+    else:
+        notes.append({'message': 'Risk Assessment # is missing — enter manually', 'type': 'error'})
+
+    if suggested_app_type == 'SAML':
+        notes.append({'message': f'Application Type: Enterprise Application (SAML)', 'type': 'info'})
+        if get_var('saml_acs_url'):
+            notes.append({'message': f'SAML ACS URL found in RITM', 'type': 'success'})
+        else:
+            notes.append({'message': 'SAML ACS URL not provided in RITM — enter manually', 'type': 'warning'})
+        if get_var('saml_entity_id'):
+            notes.append({'message': 'SAML Entity ID found in RITM', 'type': 'success'})
+        else:
+            notes.append({'message': 'SAML Entity ID not provided in RITM — enter manually', 'type': 'warning'})
+    else:
+        notes.append({'message': f'Application Type: App Registration (OIDC)', 'type': 'info'})
+        if redirect_urls:
+            notes.append({'message': f'{len(redirect_urls)} redirect URI(s) found in RITM', 'type': 'success'})
+        else:
+            if get_var('redirect_uris_required').lower() == 'yes':
+                notes.append({'message': 'Redirect URIs required but not listed — enter manually', 'type': 'warning'})
+
+    if get_var('admin_consent').lower() == 'yes':
+        notes.append({'message': 'Admin Consent Required — note this for post-creation step', 'type': 'warning'})
+
     return {
-        # Form fields
+        # ── Form fields (right panel) ───────────────────────
         'app_name': app_name_raw,
         'processed_app_name': processed_app_name,
         'environment': environment,
@@ -296,24 +330,48 @@ def build_form_data_from_ritm(ritm_data, variables, client):
         'risk_assessment': risk_assessment,
         'auth_method': auth_method,
         'app_type_raw': app_type_raw,
-        'purpose': get_var('purpose'),
+        # OIDC specific
+        'api_permissions_required': get_var('api_permissions_required'),
+        'api_permissions_details': get_var('api_permissions_details'),
+        'expose_apis': get_var('expose_apis'),
+        'expose_apis_details': get_var('expose_apis_details'),
+        'redirect_uris_required': get_var('redirect_uris_required'),
+        'tenant_scope': tenant_scope,
+        'cert_secret_required': get_var('cert_secret_required'),
+        # SAML specific
         'saml_entity_id': get_var('saml_entity_id'),
         'saml_acs_url': get_var('saml_acs_url'),
         'saml_attributes': get_var('saml_attributes'),
-        'api_permissions': get_var('api_permissions_details'),
-        'expose_apis': get_var('expose_apis_details'),
+        'metadata_xml_available': get_var('metadata_xml_available'),
+        'users_assigned': get_var('users_assigned'),
+        'users_assigned_list': get_var('users_assigned_list'),
+        # General
+        'purpose': get_var('purpose'),
         'additional_info': get_var('additional_info'),
         'admin_consent': get_var('admin_consent'),
-        # RITM metadata for display
+        'location': get_var('location'),
+        'contact_mode': get_var('contact_mode'),
+        # ── RITM metadata (left panel) ──────────────────────
         'ritm_number': ritm_number,
+        'ritm_url': ritm_url,
         'ritm_state': ritm_state,
         'ritm_opened': ritm_opened,
         'ritm_priority': ritm_priority,
-        'ritm_short_desc': ritm_short_desc,
-        'requested_for_name': requested_for_name,
         'catalog_item': catalog_item,
-        # Raw variable snapshot for the verification panel
-        'snow_variables': {k: _resolve_var(v) for k, v in variables.items()},
+        # ── People (resolved) ───────────────────────────────
+        'people': people,
+        'requested_for_name': people['requested_for']['name'],
+        'requested_for_email': people['requested_for']['email'],
+        'requested_by_name': people['requested_by']['name'],
+        'requested_by_email': people['requested_by']['email'],
+        'business_owner_name': people['business_owner']['name'],
+        'business_owner_email': people['business_owner']['email'],
+        'technical_owner_name': people['technical_owner']['name'],
+        'technical_owner_email': people['technical_owner']['email'],
+        # ── Validation notes ────────────────────────────────
+        'notes': notes,
+        # ── Raw SNOW vars snapshot ──────────────────────────
+        'snow_variables': snow_vars_flat,
     }
 
 
@@ -400,15 +458,32 @@ def start_background_execution(form_data: dict) -> str:
                     gallery_mode=form_data.get('gallery_app', False),
                     gallery_name=form_data.get('gallery_name', '') if form_data.get('gallery_app', False) else None
                 )
+                # Enrich SAML result with federation URLs
+                if result and 'service_principal' in result:
+                    sp = result['service_principal']
+                    sp_id = sp.get('id', '')
+                    if sp_id:
+                        tenant_id = ENTRA_CONFIG['tenant_id']
+                        result['federated_metadata_url'] = (
+                            f"https://login.microsoftonline.com/{tenant_id}/federationmetadata/"
+                            f"2007-06/federationmetadata.xml?appid={sp.get('app_id', '')}"
+                        )
+                        result['app_login_url'] = (
+                            f"https://myapps.microsoft.com/signin/{sp.get('app_id', '')}?tenantId={tenant_id}"
+                        )
             elif form_data['app_type'] == 'OIDC':
                 add_log(f"🔑 Creating OIDC App Registration: {form_data['app_name']}", "info")
                 update_progress("Creating OIDC App Registration...", 60)
                 tenant_param = "multiple" if "multi" in form_data.get('tenant', 'single').lower() else "single"
+                # Build redirect_urls list (supports type-tagged entries)
+                redirect_input = form_data.get('redirect_urls', [])
+                if isinstance(redirect_input, str):
+                    redirect_input = [u.strip() for u in redirect_input.splitlines() if u.strip()]
                 result = entra_client.create_app_registration(
                     name=form_data['app_name'],
                     owner_emails=form_data['owners'],
                     tenant_type=tenant_param,
-                    redirect_urls=form_data.get('redirect_urls', [])
+                    redirect_urls=redirect_input
                 )
 
             add_log("🎉 Application creation completed successfully!", "success")
@@ -418,7 +493,8 @@ def start_background_execution(form_data: dict) -> str:
                 if 'app_registration' in result:
                     app_reg = result['app_registration']
                     add_log(f"📋 App Registration Details:", "info")
-                    add_log(f"   Client ID: {app_reg.get('client_id')}", "info")
+                    add_log(f"   Client ID: {app_reg.get('client_id', 'N/A')}", "info")
+                    add_log(f"   Object ID: {app_reg.get('id', 'N/A')}", "info")
                     app_owners = app_reg.get('owners_added', [])
                     if app_owners:
                         add_log(f"👥 App Registration Owners: {', '.join(app_owners)}", "success")
@@ -430,10 +506,13 @@ def start_background_execution(form_data: dict) -> str:
                 elif 'service_principal' in result:
                     sp = result['service_principal']
                     add_log(f"📋 SAML Enterprise Application:", "info")
-                    add_log(f"   Application ID: {sp.get('app_id', 'N/A')}", "info")
+                    add_log(f"   App ID: {sp.get('app_id', 'N/A')}", "info")
+                    add_log(f"   SP Object ID: {sp.get('id', 'N/A')}", "info")
                     sp_owners = sp.get('owners_added', [])
                     if sp_owners:
                         add_log(f"👥 Owners: {', '.join(sp_owners)}", "success")
+                    if result.get('federated_metadata_url'):
+                        add_log(f"🔗 Federation Metadata: {result['federated_metadata_url']}", "info")
 
             update_progress("Execution completed successfully!", 100)
             execution_status[execution_id]['status'] = 'completed'
@@ -850,12 +929,18 @@ def cleanup_files():
         return jsonify({'success': False, 'error': str(e)}), 500
 
 
+@app.route('/history')
+def history():
+    """History page — records stored in browser localStorage, served as SPA."""
+    return render_template('history.html')
+
+
 if __name__ == '__main__':
     print("=" * 60)
     print("Azure AD App Onboarding Tool  [+ ServiceNow RITM Integration]")
     print("=" * 60)
-    print(f"📁 Upload folder: {app.config['UPLOAD_FOLDER']}")
-    print(f"📄 Results folder: {app.config['RESULTS_FOLDER']}")
-    print(f"💾 Storage: JSON Files")
+    print(f"Upload folder  : {app.config['UPLOAD_FOLDER']}")
+    print(f"Results folder : {app.config['RESULTS_FOLDER']}")
+    print(f"Storage        : JSON Files")
     print("=" * 60)
     app.run(debug=True, threaded=True)

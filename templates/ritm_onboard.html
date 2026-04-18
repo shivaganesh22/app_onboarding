@@ -3,678 +3,906 @@
 
 {% block extra_head %}
 <style>
-    .snow-badge { background: linear-gradient(135deg,#00c27a,#009e60); }
-    .field-highlight { transition: box-shadow 0.2s, border-color 0.2s; }
-    .field-highlight:focus { box-shadow: 0 0 0 3px rgba(0,120,212,0.15); }
-    .log-entry { animation: fadeIn 0.2s ease-out; }
-    @keyframes fadeIn { from{opacity:0;transform:translateY(4px)} to{opacity:1;transform:translateY(0)} }
-    .status-dot { width:8px;height:8px;border-radius:50%;display:inline-block; }
-    .snow-panel { background:linear-gradient(160deg,#f0fdf4 0%,#ecfdf5 100%); }
+  .log-terminal { font-family: 'Courier New', monospace; min-height: 220px; max-height: 380px; overflow-y: auto; }
+  .log-terminal::-webkit-scrollbar { width: 4px; }
+  .log-terminal::-webkit-scrollbar-thumb { background:#4b5563; border-radius:2px; }
+  .section-card { background:#fff; border:1px solid #e2e8f0; border-radius:12px; box-shadow:0 1px 3px rgba(0,0,0,.07); }
+  .detail-row { display:flex; gap:8px; padding:7px 0; border-bottom:1px solid #f1f5f9; font-size:.82rem; }
+  .detail-row:last-child { border-bottom:none; }
+  .detail-label { font-weight:600; color:#475569; min-width:160px; flex-shrink:0; }
+  .detail-value { color:#1e293b; word-break:break-word; }
+  .badge-state { font-size:.7rem; padding:2px 8px; border-radius:999px; font-weight:600; letter-spacing:.02em; }
+  .section-title { font-size:.68rem; font-weight:700; letter-spacing:.08em; color:#94a3b8; text-transform:uppercase; margin-bottom:10px; padding-bottom:6px; border-bottom:2px solid #e2e8f0; }
+  .redirect-row { display:flex; gap:6px; align-items:start; margin-bottom:6px; }
+  .redirect-row select { width:130px; flex-shrink:0; }
+  .redirect-row input { flex:1; }
+  .api-tag { display:inline-flex; align-items:center; gap:4px; background:#eff6ff; color:#2563eb; border:1px solid #bfdbfe; border-radius:6px; padding:2px 8px; font-size:.75rem; }
+  .api-tag button { color:#93c5fd; hover:color:#1d4ed8; }
+  .person-card { background:#f8fafc; border:1px solid #e2e8f0; border-radius:8px; padding:8px 10px; font-size:.8rem; }
+  .tab-btn { padding:6px 16px; border-radius:8px; font-size:.8rem; font-weight:600; cursor:pointer; transition:all .2s; }
+  .tab-btn.active { background:#0078d4; color:#fff; }
+  .tab-btn:not(.active) { background:#f1f5f9; color:#64748b; }
+  .tab-btn:not(.active):hover { background:#e2e8f0; }
+  .completion-card { background:linear-gradient(135deg,#ecfdf5,#d1fae5); border:1px solid #6ee7b7; border-radius:12px; }
+  .note-badge { display:flex; align-items:center; gap:8px; padding:8px 12px; border-radius:8px; font-size:.8rem; font-weight:500; margin-bottom:6px; }
+  .note-success { background:#f0fdf4; border:1px solid #bbf7d0; color:#166534; }
+  .note-warning { background:#fffbeb; border:1px solid #fde68a; color:#92400e; }
+  .note-error   { background:#fef2f2; border:1px solid #fecaca; color:#991b1b; }
+  .note-info    { background:#eff6ff; border:1px solid #bfdbfe; color:#1e40af; }
+  #splitPanel { display:none; }
+  .left-scroll { max-height: calc(100vh - 180px); overflow-y: auto; position: sticky; top: 80px; }
+  .left-scroll::-webkit-scrollbar { width: 4px; }
+  .left-scroll::-webkit-scrollbar-thumb { background:#cbd5e1; border-radius:2px; }
 </style>
 {% endblock %}
 
 {% block content %}
-<!-- Page Header -->
-<div class="flex items-center justify-between mb-6 animate-slide-up">
-    <div class="flex items-center space-x-3">
-        <a href="{{ url_for('index') }}" class="w-9 h-9 rounded-xl bg-slate-100 hover:bg-slate-200 flex items-center justify-center transition-colors">
-            <i class="fas fa-arrow-left text-slate-600 text-sm"></i>
-        </a>
-        <div>
-            <h1 class="text-2xl font-extrabold text-slate-900">RITM-Based Onboarding</h1>
-            <p class="text-slate-500 text-sm">Fetch ServiceNow ticket data and create an Azure AD application</p>
+<div class="animate-fade-in">
+  <!-- Header -->
+  <div class="flex items-center justify-between mb-6">
+    <div class="flex items-center gap-3">
+      <a href="{{ url_for('index') }}" class="w-8 h-8 rounded-full flex items-center justify-center bg-slate-100 hover:bg-slate-200 text-slate-600 transition-all">
+        <i class="fas fa-arrow-left text-sm"></i>
+      </a>
+      <div>
+        <h1 class="text-2xl font-bold text-slate-800">RITM-Based Onboarding</h1>
+        <p class="text-slate-500 text-sm">Fetch ServiceNow ticket data and create an Azure AD application</p>
+      </div>
+    </div>
+    <span class="flex items-center gap-2 bg-green-600 text-white text-sm font-semibold px-4 py-1.5 rounded-full shadow">
+      <i class="fas fa-ticket-alt"></i> ServiceNow
+    </span>
+  </div>
+
+  <!-- RITM Input -->
+  <div class="section-card p-5 mb-5">
+    <div class="flex items-center gap-2 mb-4">
+      <div class="w-7 h-7 rounded-full bg-blue-600 text-white flex items-center justify-center text-sm font-bold">1</div>
+      <h2 class="font-bold text-slate-700">Enter RITM Number</h2>
+    </div>
+    <div class="flex gap-3">
+      <div class="flex-1 relative">
+        <span class="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"><i class="fas fa-hashtag text-sm"></i></span>
+        <input id="ritmInput" type="text" placeholder="E.G. RITM0012345"
+          class="w-full pl-9 pr-4 py-2.5 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-transparent text-sm font-mono uppercase tracking-wider"
+          onkeydown="if(event.key==='Enter') fetchRITM()">
+      </div>
+      <button onclick="fetchRITM()" id="fetchBtn"
+        class="flex items-center gap-2 bg-green-600 hover:bg-green-700 text-white font-semibold px-5 py-2.5 rounded-xl transition-all shadow text-sm">
+        <i class="fas fa-search"></i> Fetch RITM Data
+      </button>
+    </div>
+    <div id="fetchError" class="hidden mt-3 text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-4 py-2.5">
+      <i class="fas fa-exclamation-circle mr-1"></i><span id="fetchErrorMsg"></span>
+    </div>
+  </div>
+
+  <!-- Validation Notes (shown after fetch) -->
+  <div id="notesSection" class="hidden section-card p-5 mb-5 animate-fade-in">
+    <h3 class="flex items-center gap-2 font-bold text-slate-700 mb-3">
+      <i class="fas fa-clipboard-check text-blue-500"></i> Processing Notes
+    </h3>
+    <div id="notesList"></div>
+  </div>
+
+  <!-- Split Panel -->
+  <div id="splitPanel" class="grid grid-cols-12 gap-5">
+
+    <!-- ══ LEFT: SNOW Details ══ -->
+    <div class="col-span-5">
+      <div class="left-scroll space-y-4">
+
+        <!-- RITM Header Card -->
+        <div class="section-card p-4">
+          <div class="section-title"><i class="fas fa-ticket-alt mr-1"></i>RITM Details</div>
+          <div class="detail-row">
+            <span class="detail-label">RITM Number</span>
+            <span class="detail-value">
+              <a id="ritmLink" href="#" target="_blank" class="text-blue-600 hover:text-blue-800 font-semibold underline" id="ritmNumberDisplay"></a>
+            </span>
+          </div>
+          <div class="detail-row">
+            <span class="detail-label">State</span>
+            <span class="detail-value"><span id="ritmState" class="badge-state bg-blue-100 text-blue-700">—</span></span>
+          </div>
+          <div class="detail-row">
+            <span class="detail-label">Catalog Item</span>
+            <span class="detail-value" id="ritmCatalog">—</span>
+          </div>
+          <div class="detail-row">
+            <span class="detail-label">Priority</span>
+            <span class="detail-value" id="ritmPriority">—</span>
+          </div>
+          <div class="detail-row">
+            <span class="detail-label">Opened</span>
+            <span class="detail-value" id="ritmOpened">—</span>
+          </div>
         </div>
-    </div>
-    <!-- SNOW badge -->
-    <div class="snow-badge flex items-center space-x-2 px-4 py-2 rounded-xl text-white shadow-md">
-        <i class="fas fa-ticket-alt text-sm"></i>
-        <span class="text-sm font-semibold">ServiceNow</span>
-    </div>
-</div>
 
-<!-- ─── Step 1: RITM Fetch ─── -->
-<div class="bg-white rounded-2xl shadow-sm border border-slate-100 p-6 mb-6 animate-slide-up" id="ritm-fetch-card">
-    <div class="flex items-center space-x-3 mb-5">
-        <div class="w-8 h-8 rounded-full bg-emerald-500 text-white flex items-center justify-center text-sm font-bold">1</div>
-        <h2 class="font-bold text-slate-800 text-lg">Enter RITM Number</h2>
-    </div>
+        <!-- Core App Info -->
+        <div class="section-card p-4">
+          <div class="section-title"><i class="fas fa-cog mr-1"></i>Application Details</div>
+          <div class="detail-row"><span class="detail-label">Risk Assessment #</span><span class="detail-value font-mono" id="sv_risk_assessment">—</span></div>
+          <div class="detail-row"><span class="detail-label">App Name</span><span class="detail-value font-semibold" id="sv_app_name">—</span></div>
+          <div class="detail-row"><span class="detail-label">Environment</span><span class="detail-value" id="sv_environment">—</span></div>
+          <div class="detail-row"><span class="detail-label">App Type</span><span class="detail-value" id="sv_app_type">—</span></div>
+          <div class="detail-row"><span class="detail-label">Auth Method</span><span class="detail-value" id="sv_auth_method">—</span></div>
+          <div class="detail-row"><span class="detail-label">Admin Consent</span><span class="detail-value" id="sv_admin_consent">—</span></div>
+        </div>
 
-    <div class="flex flex-col sm:flex-row gap-3">
-        <div class="flex-1 relative">
-            <div class="absolute inset-y-0 left-3 flex items-center pointer-events-none">
-                <i class="fas fa-hashtag text-slate-400 text-sm"></i>
+        <!-- People -->
+        <div class="section-card p-4">
+          <div class="section-title"><i class="fas fa-users mr-1"></i>People</div>
+          <div id="peopleCards" class="space-y-2"></div>
+        </div>
+
+        <!-- SAML Fields (conditional) -->
+        <div id="samlSection" class="section-card p-4 hidden">
+          <div class="section-title"><i class="fas fa-shield-alt mr-1"></i>Enterprise Application (SAML)</div>
+          <div class="detail-row"><span class="detail-label">Users Assigned?</span><span class="detail-value" id="sv_users_assigned">—</span></div>
+          <div class="detail-row"><span class="detail-label">Users/Groups List</span><span class="detail-value" id="sv_users_list">—</span></div>
+          <div class="detail-row"><span class="detail-label">SAML Entity ID</span><span class="detail-value font-mono text-xs break-all" id="sv_saml_entity_id">—</span></div>
+          <div class="detail-row"><span class="detail-label">SAML ACS URL</span><span class="detail-value font-mono text-xs break-all" id="sv_saml_acs_url">—</span></div>
+          <div class="detail-row"><span class="detail-label">SAML Attributes</span><span class="detail-value" id="sv_saml_attributes">—</span></div>
+          <div class="detail-row"><span class="detail-label">Metadata XML?</span><span class="detail-value" id="sv_metadata_xml">—</span></div>
+        </div>
+
+        <!-- App Registration Fields (conditional) -->
+        <div id="oidcSection" class="section-card p-4 hidden">
+          <div class="section-title"><i class="fas fa-key mr-1"></i>App Registration (OIDC)</div>
+          <div class="detail-row"><span class="detail-label">API Permissions?</span><span class="detail-value" id="sv_api_req">—</span></div>
+          <div class="detail-row"><span class="detail-label">API Details</span><span class="detail-value" id="sv_api_details">—</span></div>
+          <div class="detail-row"><span class="detail-label">Expose APIs?</span><span class="detail-value" id="sv_expose_apis">—</span></div>
+          <div class="detail-row"><span class="detail-label">Expose Details</span><span class="detail-value" id="sv_expose_details">—</span></div>
+          <div class="detail-row"><span class="detail-label">Redirect URIs?</span><span class="detail-value" id="sv_redir_req">—</span></div>
+          <div class="detail-row"><span class="detail-label">Redirect URIs</span><span class="detail-value font-mono text-xs" id="sv_redirect_uris">—</span></div>
+          <div class="detail-row"><span class="detail-label">Tenant Scope</span><span class="detail-value" id="sv_tenant_scope">—</span></div>
+          <div class="detail-row"><span class="detail-label">Cert/Secret?</span><span class="detail-value" id="sv_cert_secret">—</span></div>
+        </div>
+
+        <!-- Additional Notes -->
+        <div class="section-card p-4">
+          <div class="section-title"><i class="fas fa-sticky-note mr-1"></i>Additional Notes</div>
+          <div class="detail-row"><span class="detail-label">Purpose</span><span class="detail-value" id="sv_purpose">—</span></div>
+          <div class="detail-row"><span class="detail-label">Additional Info</span><span class="detail-value" id="sv_additional_info">—</span></div>
+          <div class="detail-row"><span class="detail-label">Contact Mode</span><span class="detail-value" id="sv_contact_mode">—</span></div>
+          <div class="detail-row"><span class="detail-label">Location</span><span class="detail-value" id="sv_location">—</span></div>
+        </div>
+
+        <!-- Other Variables -->
+        <div class="section-card p-4">
+          <div class="section-title"><i class="fas fa-list mr-1"></i>Other Variables</div>
+          <div id="otherVarsContainer" class="text-xs text-slate-400 italic">No additional variables</div>
+        </div>
+
+      </div><!-- end left-scroll -->
+    </div><!-- end left col -->
+
+    <!-- ══ RIGHT: Form + Execution ══ -->
+    <div class="col-span-7 space-y-5">
+
+      <!-- App Config Form -->
+      <div class="section-card p-5">
+        <div class="flex items-center gap-2 mb-4">
+          <div class="w-7 h-7 rounded-full bg-blue-600 text-white flex items-center justify-center text-sm font-bold">2</div>
+          <h2 class="font-bold text-slate-700">Application Configuration</h2>
+        </div>
+
+        <!-- App Type -->
+        <div class="mb-4">
+          <label class="block text-xs font-semibold text-slate-600 mb-2">Application Type</label>
+          <div class="grid grid-cols-2 gap-3">
+            <label id="samlCard" onclick="setAppType('SAML')"
+              class="cursor-pointer border-2 border-slate-200 rounded-xl p-3 flex items-center gap-3 transition-all hover:border-blue-300">
+              <div class="w-8 h-8 rounded-lg bg-purple-100 flex items-center justify-center">
+                <i class="fas fa-shield-alt text-purple-600 text-sm"></i>
+              </div>
+              <div>
+                <p class="text-sm font-bold text-slate-700">SAML</p>
+                <p class="text-xs text-slate-400">Enterprise Application</p>
+              </div>
+            </label>
+            <label id="oidcCard" onclick="setAppType('OIDC')"
+              class="cursor-pointer border-2 border-slate-200 rounded-xl p-3 flex items-center gap-3 transition-all hover:border-blue-300">
+              <div class="w-8 h-8 rounded-lg bg-blue-100 flex items-center justify-center">
+                <i class="fas fa-key text-blue-600 text-sm"></i>
+              </div>
+              <div>
+                <p class="text-sm font-bold text-slate-700">OIDC</p>
+                <p class="text-xs text-slate-400">App Registration</p>
+              </div>
+            </label>
+          </div>
+          <input type="hidden" id="selectedAppType" value="">
+        </div>
+
+        <!-- App Name -->
+        <div class="mb-4">
+          <label class="block text-xs font-semibold text-slate-600 mb-1">Application Name <span class="text-red-500">*</span></label>
+          <input id="appName" type="text" placeholder="AppName - Environment"
+            class="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400">
+        </div>
+
+        <!-- SAML-specific fields -->
+        <div id="samlFields" class="hidden space-y-4">
+          <div class="grid grid-cols-2 gap-3">
+            <div>
+              <label class="block text-xs font-semibold text-slate-600 mb-1">SAML Entity ID</label>
+              <input id="samlEntityId" type="text" placeholder="https://app.example.com/saml/metadata"
+                class="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400">
             </div>
-            <input type="text" id="ritm-input"
-                   placeholder="e.g. RITM0012345"
-                   class="w-full pl-9 pr-4 py-3 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:border-transparent font-mono uppercase tracking-wide transition-all"
-                   onkeypress="if(event.key==='Enter') fetchRITM()">
-        </div>
-        <button onclick="fetchRITM()" id="fetch-btn"
-                class="flex items-center justify-center space-x-2 bg-emerald-500 hover:bg-emerald-600 text-white px-6 py-3 rounded-xl font-semibold text-sm transition-all duration-200 shadow-sm hover:shadow-md active:scale-95">
-            <i class="fas fa-search" id="fetch-icon"></i>
-            <span id="fetch-text">Fetch RITM Data</span>
-        </button>
-    </div>
-
-    <!-- Fetch status -->
-    <div id="fetch-status" class="hidden mt-4"></div>
-</div>
-
-<!-- ─── Main Area (hidden until fetch) ─── -->
-<div id="main-area" class="hidden">
-
-    <!-- Step 2 header -->
-    <div class="flex items-center space-x-3 mb-4">
-        <div class="w-8 h-8 rounded-full bg-azure-blue text-white flex items-center justify-center text-sm font-bold">2</div>
-        <h2 class="font-bold text-slate-800 text-lg">Verify &amp; Complete Onboarding Form</h2>
-    </div>
-
-    <!-- Split panel -->
-    <div class="grid grid-cols-1 xl:grid-cols-5 gap-6">
-
-        <!-- ─── LEFT: Snow Ticket Details ─── -->
-        <div class="xl:col-span-2">
-            <div class="snow-panel rounded-2xl border border-emerald-100 shadow-sm p-6 sticky top-4">
-                <div class="flex items-center justify-between mb-5">
-                    <h3 class="font-bold text-slate-800 flex items-center space-x-2">
-                        <i class="fas fa-ticket-alt text-emerald-600 text-sm"></i>
-                        <span>ServiceNow Ticket</span>
-                    </h3>
-                    <span id="ritm-state-badge" class="px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-700"></span>
-                </div>
-
-                <!-- RITM Meta -->
-                <div class="space-y-3 mb-5">
-                    <div class="flex justify-between items-start text-sm">
-                        <span class="text-slate-500 font-medium w-32 flex-shrink-0">RITM Number</span>
-                        <span class="text-slate-800 font-mono font-bold text-right" id="snow-ritm-number">—</span>
-                    </div>
-                    <div class="flex justify-between items-start text-sm">
-                        <span class="text-slate-500 font-medium w-32 flex-shrink-0">Catalog Item</span>
-                        <span class="text-slate-700 text-right" id="snow-catalog-item">—</span>
-                    </div>
-                    <div class="flex justify-between items-start text-sm">
-                        <span class="text-slate-500 font-medium w-32 flex-shrink-0">Requested For</span>
-                        <span class="text-slate-700 text-right" id="snow-requested-for">—</span>
-                    </div>
-                    <div class="flex justify-between items-start text-sm">
-                        <span class="text-slate-500 font-medium w-32 flex-shrink-0">Priority</span>
-                        <span class="text-slate-700 text-right" id="snow-priority">—</span>
-                    </div>
-                    <div class="flex justify-between items-start text-sm">
-                        <span class="text-slate-500 font-medium w-32 flex-shrink-0">Opened At</span>
-                        <span class="text-slate-700 text-right" id="snow-opened">—</span>
-                    </div>
-                </div>
-
-                <div class="border-t border-emerald-200 my-4"></div>
-
-                <!-- All SNOW variables -->
-                <h4 class="font-semibold text-slate-700 text-sm mb-3 flex items-center space-x-1.5">
-                    <i class="fas fa-list-ul text-emerald-500 text-xs"></i>
-                    <span>All SNOW Variables</span>
-                </h4>
-                <div id="snow-variables-list" class="space-y-2 max-h-72 overflow-y-auto scrollbar-thin pr-1">
-                    <!-- populated by JS -->
-                </div>
-
-                <!-- Verification notice -->
-                <div class="mt-5 p-3 bg-amber-50 border border-amber-200 rounded-xl flex items-start space-x-2">
-                    <i class="fas fa-exclamation-triangle text-amber-500 text-sm mt-0.5 flex-shrink-0"></i>
-                    <p class="text-amber-700 text-xs leading-relaxed">
-                        Review the form on the right. You can edit any auto-filled value before submitting.
-                    </p>
-                </div>
+            <div>
+              <label class="block text-xs font-semibold text-slate-600 mb-1">SAML ACS URL</label>
+              <input id="samlAcsUrl" type="text" placeholder="https://app.example.com/saml/acs"
+                class="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400">
             </div>
+          </div>
+
+          <!-- User Assignment -->
+          <div>
+            <label class="block text-xs font-semibold text-slate-600 mb-1">Users Assignment</label>
+            <textarea id="usersAssignment" rows="2" placeholder="Emails or UPNs (one per line) to assign to this app"
+              class="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 resize-none"></textarea>
+          </div>
+          <!-- Group Assignment -->
+          <div>
+            <label class="block text-xs font-semibold text-slate-600 mb-1">Groups Assignment</label>
+            <textarea id="groupsAssignment" rows="2" placeholder="Group names or IDs (one per line) to assign to this app"
+              class="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 resize-none"></textarea>
+          </div>
         </div>
 
-        <!-- ─── RIGHT: Onboarding Form ─── -->
-        <div class="xl:col-span-3">
-            <form id="onboard-form" class="space-y-6">
+        <!-- OIDC-specific fields -->
+        <div id="oidcFields" class="hidden space-y-4">
+          <!-- Tenant -->
+          <div>
+            <label class="block text-xs font-semibold text-slate-600 mb-1">Tenant Type</label>
+            <select id="tenantType" class="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400">
+              <option value="Single-Tenant">Single-Tenant</option>
+              <option value="Multi-Tenant">Multi-Tenant</option>
+            </select>
+          </div>
 
-                <!-- ── App Name & Environment ── -->
-                <div class="bg-white rounded-2xl border border-slate-100 shadow-sm p-6">
-                    <h4 class="font-bold text-slate-800 mb-4 flex items-center space-x-2">
-                        <i class="fas fa-cube text-azure-blue text-sm"></i>
-                        <span>Application Details</span>
-                    </h4>
-                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        <div class="sm:col-span-2">
-                            <label class="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5" for="r-app-name">Application Name <span class="text-red-400">*</span></label>
-                            <input type="text" id="r-app-name" name="app_name" required
-                                   class="w-full px-4 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-azure-blue/30 focus:border-azure-blue field-highlight transition-all">
-                        </div>
-                        <div>
-                            <label class="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5" for="r-environment">Environment</label>
-                            <input type="text" id="r-environment" name="environment"
-                                   class="w-full px-4 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-azure-blue/30 focus:border-azure-blue field-highlight transition-all"
-                                   placeholder="e.g. Production">
-                        </div>
-                        <div>
-                            <label class="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5" for="r-risk-assessment">Risk Assessment #</label>
-                            <input type="text" id="r-risk-assessment" name="risk_assessment"
-                                   class="w-full px-4 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-azure-blue/30 focus:border-azure-blue field-highlight transition-all"
-                                   placeholder="5-digit number">
-                        </div>
-                    </div>
-                </div>
+          <!-- Redirect URLs -->
+          <div>
+            <div class="flex items-center justify-between mb-1">
+              <label class="block text-xs font-semibold text-slate-600">Redirect URLs</label>
+              <button onclick="addRedirectRow()" class="text-xs text-blue-600 hover:text-blue-800 font-semibold">
+                <i class="fas fa-plus mr-1"></i>Add URL
+              </button>
+            </div>
+            <div id="redirectContainer" class="space-y-2"></div>
+          </div>
 
-                <!-- ── App Type ── -->
-                <div class="bg-white rounded-2xl border border-slate-100 shadow-sm p-6">
-                    <h4 class="font-bold text-slate-800 mb-4 flex items-center space-x-2">
-                        <i class="fas fa-layer-group text-azure-blue text-sm"></i>
-                        <span>Application Type</span>
-                    </h4>
-                    <div class="grid grid-cols-2 gap-4" id="r-app-type-group">
-                        <!-- OIDC -->
-                        <label id="r-oidc-label"
-                               class="relative flex flex-col p-4 border-2 rounded-xl cursor-pointer transition-all duration-200 border-azure-blue bg-blue-50"
-                               onclick="selectAppType('OIDC')">
-                            <input type="radio" name="app_type" value="OIDC" id="r-oidc" class="sr-only" checked>
-                            <div class="flex items-center space-x-3 mb-1">
-                                <div class="w-8 h-8 rounded-lg bg-blue-100 flex items-center justify-center">
-                                    <i class="fas fa-key text-blue-600 text-sm"></i>
-                                </div>
-                                <span class="font-bold text-slate-800 text-sm">OIDC</span>
-                            </div>
-                            <span class="text-xs text-slate-500 leading-relaxed">App Registration — OAuth 2.0 / OpenID Connect</span>
-                            <div id="r-oidc-check" class="absolute top-3 right-3 w-5 h-5 rounded-full bg-azure-blue flex items-center justify-center">
-                                <i class="fas fa-check text-white text-xs"></i>
-                            </div>
-                        </label>
-                        <!-- SAML -->
-                        <label id="r-saml-label"
-                               class="relative flex flex-col p-4 border-2 rounded-xl cursor-pointer transition-all duration-200 border-slate-200 hover:border-slate-300"
-                               onclick="selectAppType('SAML')">
-                            <input type="radio" name="app_type" value="SAML" id="r-saml" class="sr-only">
-                            <div class="flex items-center space-x-3 mb-1">
-                                <div class="w-8 h-8 rounded-lg bg-emerald-100 flex items-center justify-center">
-                                    <i class="fas fa-shield-alt text-emerald-600 text-sm"></i>
-                                </div>
-                                <span class="font-bold text-slate-800 text-sm">SAML</span>
-                            </div>
-                            <span class="text-xs text-slate-500 leading-relaxed">Enterprise App — SAML 2.0 SSO</span>
-                            <div id="r-saml-check" class="absolute top-3 right-3 w-5 h-5 rounded-full bg-slate-200 hidden items-center justify-center">
-                                <i class="fas fa-check text-white text-xs"></i>
-                            </div>
-                        </label>
-                    </div>
-
-                    <!-- SAML Gallery option (shown only for SAML) -->
-                    <div id="r-saml-gallery-section" class="hidden mt-4 p-4 bg-slate-50 rounded-xl border border-slate-200">
-                        <label class="flex items-center space-x-3 cursor-pointer mb-3">
-                            <input type="checkbox" id="r-gallery-app" name="gallery_app" class="h-4 w-4 rounded text-azure-blue">
-                            <span class="text-sm font-medium text-slate-700">Search in Azure AD Gallery</span>
-                        </label>
-                        <div id="r-gallery-name-field" class="hidden">
-                            <label class="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5" for="r-gallery-name">Gallery Search Name</label>
-                            <input type="text" id="r-gallery-name" name="gallery_name"
-                                   class="w-full px-4 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-azure-blue/30 field-highlight transition-all"
-                                   placeholder="App name to search in gallery">
-                        </div>
-                    </div>
-                </div>
-
-                <!-- ── OIDC Settings (conditional) ── -->
-                <div id="r-oidc-section" class="bg-white rounded-2xl border border-slate-100 shadow-sm p-6">
-                    <h4 class="font-bold text-slate-800 mb-4 flex items-center space-x-2">
-                        <i class="fas fa-cog text-azure-blue text-sm"></i>
-                        <span>OIDC Configuration</span>
-                    </h4>
-                    <div class="space-y-4">
-                        <div>
-                            <label class="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5" for="r-tenant">Tenant Scope <span class="text-red-400">*</span></label>
-                            <div class="relative">
-                                <select id="r-tenant" name="tenant"
-                                        class="w-full pl-4 pr-10 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-azure-blue/30 focus:border-azure-blue appearance-none bg-white field-highlight transition-all">
-                                    <option value="Single-Tenant">Single-Tenant</option>
-                                    <option value="Multi-Tenant">Multi-Tenant</option>
-                                </select>
-                                <div class="pointer-events-none absolute inset-y-0 right-3 flex items-center">
-                                    <i class="fas fa-chevron-down text-slate-400 text-xs"></i>
-                                </div>
-                            </div>
-                        </div>
-                        <div>
-                            <label class="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5" for="r-redirect-urls">Redirect URLs <span class="text-slate-400 font-normal normal-case">(one per line)</span></label>
-                            <textarea id="r-redirect-urls" name="redirect_urls" rows="3"
-                                      placeholder="https://myapp.com/auth/callback&#10;https://localhost:3000/signin-oidc"
-                                      class="w-full px-4 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-azure-blue/30 focus:border-azure-blue resize-none font-mono field-highlight transition-all"></textarea>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- ── Owners ── -->
-                <div class="bg-white rounded-2xl border border-slate-100 shadow-sm p-6">
-                    <h4 class="font-bold text-slate-800 mb-4 flex items-center space-x-2">
-                        <i class="fas fa-users text-azure-blue text-sm"></i>
-                        <span>Application Owners</span>
-                    </h4>
-                    <label class="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5" for="r-owners">Owner Emails <span class="text-red-400">*</span> <span class="text-slate-400 font-normal normal-case">(one per line)</span></label>
-                    <textarea id="r-owners" name="owners" rows="4" required
-                              placeholder="user@company.com&#10;owner@company.com"
-                              class="w-full px-4 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-azure-blue/30 focus:border-azure-blue resize-none font-mono field-highlight transition-all"></textarea>
-                    <p class="text-xs text-slate-400 mt-1.5">Auto-populated from RITM's Requested For, Business Owner, and Technical Owner fields.</p>
-                </div>
-
-                <!-- ── SAML Fields (conditional) ── -->
-                <div id="r-saml-fields-section" class="hidden bg-white rounded-2xl border border-slate-100 shadow-sm p-6">
-                    <h4 class="font-bold text-slate-800 mb-4 flex items-center space-x-2">
-                        <i class="fas fa-shield-alt text-emerald-600 text-sm"></i>
-                        <span>SAML Details (from RITM)</span>
-                    </h4>
-                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        <div>
-                            <label class="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5">Entity ID</label>
-                            <input type="text" id="r-saml-entity-id" readonly
-                                   class="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-600 font-mono">
-                        </div>
-                        <div>
-                            <label class="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5">ACS URL</label>
-                            <input type="text" id="r-saml-acs-url" readonly
-                                   class="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-600 font-mono">
-                        </div>
-                        <div class="sm:col-span-2">
-                            <label class="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5">Attributes</label>
-                            <input type="text" id="r-saml-attributes" readonly
-                                   class="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-600">
-                        </div>
-                    </div>
-                </div>
-
-                <!-- ── Execution ── -->
-                <div class="bg-white rounded-2xl border border-slate-100 shadow-sm p-6">
-                    <h4 class="font-bold text-slate-800 mb-4 flex items-center space-x-2">
-                        <i class="fas fa-rocket text-azure-blue text-sm"></i>
-                        <span>Execute Application Creation</span>
-                    </h4>
-
-                    <!-- Progress -->
-                    <div id="r-progress-section" class="hidden mb-4">
-                        <div class="flex justify-between items-center mb-2">
-                            <span id="r-current-step" class="text-sm text-slate-600">Initializing...</span>
-                            <span id="r-progress-percent" class="text-sm font-semibold text-azure-blue">0%</span>
-                        </div>
-                        <div class="w-full bg-slate-100 rounded-full h-2.5">
-                            <div id="r-progress-bar" class="h-2.5 rounded-full transition-all duration-500"
-                                 style="width:0%;background:linear-gradient(90deg,#0078d4,#50a8f5)"></div>
-                        </div>
-                    </div>
-
-                    <!-- Logs terminal -->
-                    <div id="r-execution-logs"
-                         class="bg-gray-950 text-green-400 p-4 rounded-xl font-mono text-xs min-h-28 max-h-56 overflow-y-auto scrollbar-thin mb-4">
-                        <div class="text-slate-500">
-                            <i class="fas fa-info-circle mr-2"></i>Fill in the form and click "Verify &amp; Submit" to begin...
-                        </div>
-                    </div>
-
-                    <!-- App Details after success -->
-                    <div id="r-app-details" class="hidden mb-4"></div>
-
-                    <!-- Actions -->
-                    <div class="flex items-center justify-between p-4 bg-slate-50 rounded-xl border border-slate-100">
-                        <div class="flex items-center space-x-3">
-                            <div id="r-status-spinner" class="hidden animate-spin rounded-full h-5 w-5 border-2 border-azure-blue border-t-transparent"></div>
-                            <div>
-                                <p id="r-status-text" class="text-sm font-semibold text-slate-700">Ready to submit</p>
-                                <p id="r-status-sub" class="text-xs text-slate-400 mt-0.5"></p>
-                            </div>
-                        </div>
-                        <div class="flex items-center space-x-3">
-                            <div id="r-completion-actions" class="hidden">
-                                <a href="{{ url_for('index') }}"
-                                   class="inline-flex items-center space-x-2 px-4 py-2 bg-slate-800 text-white text-sm font-semibold rounded-xl hover:bg-slate-700 transition-colors">
-                                    <i class="fas fa-home"></i><span>Back to Home</span>
-                                </a>
-                            </div>
-                            <button type="button" id="r-submit-btn" onclick="submitOnboarding()"
-                                    class="inline-flex items-center space-x-2 px-6 py-2.5 bg-gradient-to-r from-azure-blue to-azure-dark text-white text-sm font-bold rounded-xl hover:shadow-lg hover:shadow-blue-200 active:scale-95 transition-all duration-200 disabled:opacity-50 disabled:pointer-events-none">
-                                <i class="fas fa-paper-plane"></i>
-                                <span>Verify &amp; Submit</span>
-                            </button>
-                        </div>
-                    </div>
-                </div>
-
-            </form>
+          <!-- API Permissions -->
+          <div>
+            <label class="block text-xs font-semibold text-slate-600 mb-1">API Permissions</label>
+            <div class="flex gap-2 mb-2">
+              <input id="apiSearch" type="text" placeholder="e.g. User.Read, Mail.Send ..."
+                list="commonApiList"
+                class="flex-1 border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
+                onkeydown="if(event.key==='Enter'){event.preventDefault();addApiTag();}">
+              <datalist id="commonApiList">
+                <option value="User.Read"><option value="User.ReadWrite"><option value="Mail.Read">
+                <option value="Mail.Send"><option value="Calendars.Read"><option value="Files.Read.All">
+                <option value="Directory.Read.All"><option value="Group.Read.All"><option value="offline_access">
+                <option value="openid"><option value="profile">
+              </datalist>
+              <button onclick="addApiTag()" class="bg-blue-600 text-white text-xs font-semibold px-3 py-2 rounded-lg hover:bg-blue-700 transition">Add</button>
+            </div>
+            <div id="apiTagsContainer" class="flex flex-wrap gap-1.5 min-h-[28px]"></div>
+          </div>
         </div>
-    </div>
-</div>
+
+        <!-- Application Owners -->
+        <div class="mt-4">
+          <label class="block text-xs font-semibold text-slate-600 mb-1">Application Owners (one email per line) <span class="text-red-500">*</span></label>
+          <textarea id="owners" rows="3" placeholder="user@company.com&#10;owner2@company.com"
+            class="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 resize-none font-mono"></textarea>
+        </div>
+      </div>
+
+      <!-- Execute Section -->
+      <div class="section-card p-5">
+        <div class="flex items-center gap-2 mb-4">
+          <div class="w-7 h-7 rounded-full bg-blue-600 text-white flex items-center justify-center text-sm font-bold">3</div>
+          <h2 class="font-bold text-slate-700">Execute Application Creation</h2>
+        </div>
+        <div class="flex items-center justify-between mb-3">
+          <p class="text-xs text-slate-500"><i class="fas fa-terminal mr-1"></i>Execution Logs</p>
+          <span id="execStatusBadge" class="text-xs font-semibold text-slate-400">Ready to execute</span>
+        </div>
+        <div id="execLogs" class="log-terminal bg-slate-900 rounded-xl p-4 text-xs text-slate-300 scrollbar-thin">
+          <span class="text-slate-500">ℹ Click "Execute Application Creation" to begin...</span>
+        </div>
+        <!-- Progress Bar -->
+        <div class="mt-3 h-1.5 bg-slate-100 rounded-full overflow-hidden">
+          <div id="progressBar" class="h-full bg-blue-500 rounded-full transition-all duration-500" style="width:0%"></div>
+        </div>
+        <div class="flex justify-between mt-4">
+          <button onclick="clearLogs()" class="text-sm text-slate-400 hover:text-slate-600 transition">
+            <i class="fas fa-trash mr-1 text-xs"></i>Clear
+          </button>
+          <button onclick="executeOnboard()" id="executeBtn"
+            class="flex items-center gap-2 bg-green-600 hover:bg-green-700 disabled:bg-slate-300 disabled:cursor-not-allowed text-white font-semibold px-6 py-2.5 rounded-xl transition-all shadow text-sm">
+            <i class="fas fa-rocket"></i> Execute Application Creation
+          </button>
+        </div>
+      </div>
+
+      <!-- Completion Details (shown after success) -->
+      <div id="completionSection" class="hidden section-card p-5 animate-fade-in">
+        <h3 class="flex items-center gap-2 font-bold text-slate-700 mb-4">
+          <i class="fas fa-check-circle text-green-500 text-lg"></i> Application Created Successfully
+        </h3>
+        <div id="appDetails" class="space-y-2 mb-4"></div>
+        <div id="samlUrls" class="hidden mt-3 p-3 bg-purple-50 border border-purple-200 rounded-xl space-y-2">
+          <p class="text-xs font-bold text-purple-700"><i class="fas fa-link mr-1"></i>SAML Federation URLs</p>
+          <div class="detail-row">
+            <span class="detail-label text-purple-600">Federation Metadata URL</span>
+            <a id="fedMetaUrl" href="#" target="_blank" class="detail-value text-blue-600 underline text-xs break-all">#</a>
+          </div>
+          <div class="detail-row">
+            <span class="detail-label text-purple-600">App Login URL</span>
+            <a id="appLoginUrl" href="#" target="_blank" class="detail-value text-blue-600 underline text-xs break-all">#</a>
+          </div>
+        </div>
+      </div>
+
+      <!-- Email Section (shown after success) -->
+      <div id="emailSection" class="hidden section-card p-5 animate-fade-in">
+        <div class="flex items-center gap-2 mb-4">
+          <div class="w-7 h-7 rounded-full bg-indigo-500 text-white flex items-center justify-center text-sm"><i class="fas fa-envelope"></i></div>
+          <h3 class="font-bold text-slate-700">Notification Email</h3>
+          <span class="text-xs bg-indigo-100 text-indigo-700 font-semibold px-2 py-0.5 rounded-full">Outlook</span>
+        </div>
+        <div class="space-y-3">
+          <div>
+            <label class="block text-xs font-semibold text-slate-500 mb-1">To</label>
+            <input id="emailTo" type="text" class="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400" placeholder="recipient@company.com">
+          </div>
+          <div>
+            <label class="block text-xs font-semibold text-slate-500 mb-1">CC</label>
+            <input id="emailCc" type="text" class="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400" placeholder="cc@company.com; cc2@company.com">
+          </div>
+          <div>
+            <label class="block text-xs font-semibold text-slate-500 mb-1">Subject</label>
+            <input id="emailSubject" type="text" class="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400">
+          </div>
+          <div>
+            <label class="block text-xs font-semibold text-slate-500 mb-1">Body</label>
+            <textarea id="emailBody" rows="8" class="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 resize-none font-mono"></textarea>
+          </div>
+          <button onclick="sendViaOutlook()" class="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold px-5 py-2.5 rounded-xl transition-all shadow text-sm">
+            <i class="fas fa-paper-plane"></i> Send via Outlook
+          </button>
+        </div>
+      </div>
+
+    </div><!-- end right col -->
+  </div><!-- end splitPanel -->
+</div><!-- end animate-fade-in -->
 {% endblock %}
 
 {% block extra_scripts %}
 <script>
-let currentExecutionId = null;
-let executionStarted = false;
-let executionComplete = false;
-let pollInterval = null;
+// ──────────────────────────────────────────────
+// State
+// ──────────────────────────────────────────────
+let currentFormData = null;
+let selectedAppType = '';
+let executionInterval = null;
+let executionResult = null;
+let apiPermissions = [];
+let redirectRows = [];
 
-// ─── Fetch RITM ───────────────────────────────────────────────────
-function fetchRITM() {
-    const ritm = document.getElementById('ritm-input').value.trim().toUpperCase();
-    if (!ritm) { showFetchStatus('error', 'Please enter a RITM number.'); return; }
+// ──────────────────────────────────────────────
+// Fetch RITM
+// ──────────────────────────────────────────────
+async function fetchRITM() {
+  const ritmNum = document.getElementById('ritmInput').value.trim().toUpperCase();
+  if (!ritmNum) { showFetchError('Please enter a RITM number'); return; }
 
-    const btn = document.getElementById('fetch-btn');
-    document.getElementById('fetch-icon').className = 'fas fa-spinner fa-spin';
-    document.getElementById('fetch-text').textContent = 'Fetching...';
-    btn.disabled = true;
+  const btn = document.getElementById('fetchBtn');
+  btn.disabled = true;
+  btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Fetching...';
+  document.getElementById('fetchError').classList.add('hidden');
 
-    fetch('/fetch_ritm', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ritm_number: ritm })
-    })
-    .then(r => r.json())
-    .then(data => {
-        document.getElementById('fetch-icon').className = 'fas fa-search';
-        document.getElementById('fetch-text').textContent = 'Fetch RITM Data';
-        btn.disabled = false;
-
-        if (data.success) {
-            showFetchStatus('success', `✅ RITM data fetched successfully for <strong>${ritm}</strong>`);
-            populateForm(data.form_data);
-            document.getElementById('main-area').classList.remove('hidden');
-            document.getElementById('main-area').scrollIntoView({ behavior: 'smooth', block: 'start' });
-        } else {
-            showFetchStatus('error', `❌ ${data.error || 'Failed to fetch RITM data.'}`);
-        }
-    })
-    .catch(err => {
-        document.getElementById('fetch-icon').className = 'fas fa-search';
-        document.getElementById('fetch-text').textContent = 'Fetch RITM Data';
-        btn.disabled = false;
-        showFetchStatus('error', `❌ Network error: ${err.message}`);
+  try {
+    const resp = await fetch('/fetch_ritm', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ritm_number: ritmNum})
     });
+    const data = await resp.json();
+    if (!data.success) { showFetchError(data.error || 'Failed to fetch RITM'); return; }
+
+    currentFormData = data.form_data;
+    populateUI(currentFormData);
+    document.getElementById('splitPanel').style.display = 'grid';
+    document.getElementById('notesSection').classList.remove('hidden');
+    document.getElementById('splitPanel').scrollIntoView({behavior:'smooth', block:'start'});
+  } catch(e) {
+    showFetchError('Network error: ' + e.message);
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = '<i class="fas fa-search mr-2"></i>Fetch RITM Data';
+  }
 }
 
-function showFetchStatus(type, msg) {
-    const el = document.getElementById('fetch-status');
-    el.classList.remove('hidden');
-    const colors = type === 'success'
-        ? 'bg-emerald-50 border-emerald-200 text-emerald-800'
-        : 'bg-red-50 border-red-200 text-red-800';
-    el.className = `mt-4 px-4 py-3 rounded-xl border text-sm ${colors}`;
-    el.innerHTML = msg;
+function showFetchError(msg) {
+  document.getElementById('fetchError').classList.remove('hidden');
+  document.getElementById('fetchErrorMsg').textContent = msg;
 }
 
-// ─── Populate form fields ──────────────────────────────────────────
-function populateForm(fd) {
-    setValue('r-app-name', fd.app_name || '');
-    setValue('r-environment', fd.environment || '');
-    setValue('r-risk-assessment', fd.risk_assessment || '');
-    setValue('r-redirect-urls', fd.redirect_urls || '');
-    setValue('r-owners', fd.owners || '');
-    setValue('r-tenant', fd.suggested_tenant || 'Single-Tenant');
-    setValue('r-saml-entity-id', fd.saml_entity_id || '');
-    setValue('r-saml-acs-url', fd.saml_acs_url || '');
-    setValue('r-saml-attributes', fd.saml_attributes || '');
+// ──────────────────────────────────────────────
+// Populate UI from form_data
+// ──────────────────────────────────────────────
+function populateUI(fd) {
+  // RITM header
+  const link = document.getElementById('ritmLink');
+  link.textContent = fd.ritm_number || '—';
+  link.href = fd.ritm_url || '#';
+  setText('ritmState', fd.ritm_state || '—');
+  setText('ritmCatalog', fd.catalog_item || '—');
+  setText('ritmPriority', fd.ritm_priority || '—');
+  setText('ritmOpened', fd.ritm_opened || '—');
 
-    selectAppType(fd.suggested_app_type || 'OIDC');
+  // App details
+  setText('sv_risk_assessment', fd.risk_assessment || '—');
+  setText('sv_app_name', fd.app_name || '—');
+  setText('sv_environment', fd.environment || '—');
+  setText('sv_app_type', fd.app_type_raw || '—');
+  setText('sv_auth_method', fd.auth_method || '—');
+  setText('sv_admin_consent', fd.admin_consent || '—');
 
-    // SNOW left panel
-    setHtml('snow-ritm-number', fd.ritm_number || '—');
-    setHtml('snow-catalog-item', fd.catalog_item || '—');
-    setHtml('snow-requested-for', fd.requested_for_name || '—');
-    setHtml('snow-priority', fd.ritm_priority || '—');
-    setHtml('snow-opened', fd.ritm_opened || '—');
+  // People
+  const people = fd.people || {};
+  const peopleFields = [
+    {key:'requested_for', label:'Requested For'},
+    {key:'requested_by', label:'Requested By'},
+    {key:'technical_owner', label:'Technical Owner'},
+    {key:'business_owner', label:'Business Owner'},
+  ];
+  const pc = document.getElementById('peopleCards');
+  pc.innerHTML = '';
+  peopleFields.forEach(({key, label}) => {
+    const p = people[key] || {};
+    const name = p.name || fd[key+'_name'] || '—';
+    const email = p.email || fd[key+'_email'] || '';
+    const emailHtml = email ? `<span class="text-blue-600 font-mono text-xs">(${email})</span>` : '';
+    pc.innerHTML += `<div class="person-card"><span class="font-semibold text-slate-600 text-xs">${label}:</span> <span class="text-slate-800 text-xs">${name}</span> ${emailHtml}</div>`;
+  });
 
-    // State badge
-    const stateEl = document.getElementById('ritm-state-badge');
-    stateEl.textContent = fd.ritm_state || 'N/A';
-    const stateColors = {
-        'Open': 'bg-blue-100 text-blue-700',
-        'In Progress': 'bg-amber-100 text-amber-700',
-        'Fulfilled': 'bg-emerald-100 text-emerald-700',
-        'Closed': 'bg-slate-100 text-slate-600',
-        'Cancelled': 'bg-red-100 text-red-700',
-    };
-    let colorClass = 'bg-slate-100 text-slate-600';
-    for (const [key, cls] of Object.entries(stateColors)) {
-        if ((fd.ritm_state || '').toLowerCase().includes(key.toLowerCase())) { colorClass = cls; break; }
+  // SAML / OIDC conditional sections
+  if (fd.suggested_app_type === 'SAML') {
+    document.getElementById('samlSection').classList.remove('hidden');
+    document.getElementById('oidcSection').classList.add('hidden');
+    setText('sv_users_assigned', fd.users_assigned || '—');
+    setText('sv_users_list', fd.users_assigned_list || '—');
+    setText('sv_saml_entity_id', fd.saml_entity_id || '—');
+    setText('sv_saml_acs_url', fd.saml_acs_url || '—');
+    setText('sv_saml_attributes', fd.saml_attributes || '—');
+    setText('sv_metadata_xml', fd.metadata_xml_available || '—');
+  } else {
+    document.getElementById('oidcSection').classList.remove('hidden');
+    document.getElementById('samlSection').classList.add('hidden');
+    setText('sv_api_req', fd.api_permissions_required || '—');
+    setText('sv_api_details', fd.api_permissions_details || '—');
+    setText('sv_expose_apis', fd.expose_apis || '—');
+    setText('sv_expose_details', fd.expose_apis_details || '—');
+    setText('sv_redir_req', fd.redirect_uris_required || '—');
+    setText('sv_redirect_uris', fd.redirect_urls || '—');
+    setText('sv_tenant_scope', fd.tenant_scope || '—');
+    setText('sv_cert_secret', fd.cert_secret_required || '—');
+  }
+
+  // Additional notes
+  setText('sv_purpose', fd.purpose || '—');
+  setText('sv_additional_info', fd.additional_info || '—');
+  setText('sv_contact_mode', fd.contact_mode || '—');
+  setText('sv_location', fd.location || '—');
+
+  // Other variables
+  const knownKeys = new Set(['risk_assessment','app_name','environment','app_type','auth_method',
+    'admin_consent','users_assigned','users_assigned_list','saml_entity_id','saml_acs_url',
+    'saml_attributes','metadata_xml_available','api_permissions_required','api_permissions_details',
+    'expose_apis','expose_apis_details','redirect_uris_required','redirect_uris_list','tenant_scope',
+    'cert_secret_required','purpose','additional_info','contact_mode','location',
+    'requested_for','requested_by','business_owner','technical_owner']);
+  const sv = fd.snow_variables || {};
+  const otherKeys = Object.keys(sv).filter(k => !knownKeys.has(k) && sv[k]);
+  const ovc = document.getElementById('otherVarsContainer');
+  if (otherKeys.length > 0) {
+    ovc.innerHTML = otherKeys.map(k =>
+      `<div class="detail-row"><span class="detail-label">${k.replace(/_/g,' ')}</span><span class="detail-value">${sv[k]}</span></div>`
+    ).join('');
+  } else {
+    ovc.innerHTML = '<p class="text-xs text-slate-400 italic">No additional variables</p>';
+  }
+
+  // Validation notes
+  const notes = fd.notes || [];
+  const notesList = document.getElementById('notesList');
+  notesList.innerHTML = notes.map(n => {
+    const icons = {success:'fa-check-circle',warning:'fa-exclamation-triangle',error:'fa-times-circle',info:'fa-info-circle'};
+    return `<div class="note-badge note-${n.type}"><i class="fas ${icons[n.type]||'fa-info-circle'}"></i>${n.message}</div>`;
+  }).join('');
+
+  // Pre-fill right form
+  setAppType(fd.suggested_app_type || 'OIDC');
+  document.getElementById('appName').value = fd.processed_app_name || fd.app_name || '';
+  document.getElementById('owners').value = fd.owners || '';
+
+  if (fd.suggested_app_type === 'SAML') {
+    document.getElementById('samlEntityId').value = fd.saml_entity_id || '';
+    document.getElementById('samlAcsUrl').value = fd.saml_acs_url || '';
+    document.getElementById('usersAssignment').value = fd.users_assigned_list || '';
+  } else {
+    document.getElementById('tenantType').value = fd.suggested_tenant || 'Single-Tenant';
+    // Add redirect rows from RITM
+    document.getElementById('redirectContainer').innerHTML = '';
+    redirectRows = [];
+    if (fd.redirect_urls) {
+      fd.redirect_urls.split('\n').filter(Boolean).forEach(u => addRedirectRow(u));
     }
-    stateEl.className = `px-2.5 py-1 rounded-full text-xs font-semibold ${colorClass}`;
-
-    // Variables list
-    const varList = document.getElementById('snow-variables-list');
-    varList.innerHTML = '';
-    const vars = fd.snow_variables || {};
-    for (const [key, val] of Object.entries(vars)) {
-        if (!val) continue;
-        const div = document.createElement('div');
-        div.className = 'flex justify-between items-start text-xs py-1.5 border-b border-emerald-100 last:border-0';
-        div.innerHTML = `
-            <span class="text-slate-500 font-medium capitalize mr-3 flex-shrink-0" style="max-width:110px">${key.replace(/_/g,' ')}</span>
-            <span class="text-slate-700 text-right break-words font-mono" style="max-width:160px">${escHtml(String(val))}</span>
-        `;
-        varList.appendChild(div);
+    // API permissions
+    apiPermissions = [];
+    document.getElementById('apiTagsContainer').innerHTML = '';
+    if (fd.api_permissions_details) {
+      fd.api_permissions_details.split(/[,;\n]/).filter(Boolean).forEach(p => addApiTag(p.trim()));
     }
+  }
 }
 
-function setValue(id, val) { const el = document.getElementById(id); if (el) el.value = val; }
-function setHtml(id, val) { const el = document.getElementById(id); if (el) el.innerHTML = escHtml(val); }
-function escHtml(s) { return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
-
-// ─── App Type Toggle ──────────────────────────────────────────────
-function selectAppType(type) {
-    document.getElementById('r-oidc').checked = type === 'OIDC';
-    document.getElementById('r-saml').checked = type === 'SAML';
-
-    // OIDC card
-    const oidcLabel = document.getElementById('r-oidc-label');
-    const samlLabel = document.getElementById('r-saml-label');
-    const oidcCheck = document.getElementById('r-oidc-check');
-    const samlCheck = document.getElementById('r-saml-check');
-
-    if (type === 'OIDC') {
-        oidcLabel.className = 'relative flex flex-col p-4 border-2 rounded-xl cursor-pointer transition-all duration-200 border-azure-blue bg-blue-50';
-        samlLabel.className = 'relative flex flex-col p-4 border-2 rounded-xl cursor-pointer transition-all duration-200 border-slate-200 hover:border-slate-300';
-        oidcCheck.className = 'absolute top-3 right-3 w-5 h-5 rounded-full bg-azure-blue flex items-center justify-center';
-        samlCheck.className = 'absolute top-3 right-3 w-5 h-5 rounded-full bg-slate-200 hidden items-center justify-center';
-        document.getElementById('r-oidc-section').classList.remove('hidden');
-        document.getElementById('r-saml-gallery-section').classList.add('hidden');
-        document.getElementById('r-saml-fields-section').classList.add('hidden');
-    } else {
-        samlLabel.className = 'relative flex flex-col p-4 border-2 rounded-xl cursor-pointer transition-all duration-200 border-emerald-500 bg-emerald-50';
-        oidcLabel.className = 'relative flex flex-col p-4 border-2 rounded-xl cursor-pointer transition-all duration-200 border-slate-200 hover:border-slate-300';
-        samlCheck.className = 'absolute top-3 right-3 w-5 h-5 rounded-full bg-emerald-500 flex items-center justify-center';
-        oidcCheck.className = 'absolute top-3 right-3 w-5 h-5 rounded-full bg-slate-200 hidden items-center justify-center';
-        document.getElementById('r-oidc-section').classList.add('hidden');
-        document.getElementById('r-saml-gallery-section').classList.remove('hidden');
-        document.getElementById('r-saml-fields-section').classList.remove('hidden');
-    }
+function setText(id, val) {
+  const el = document.getElementById(id);
+  if (el) el.textContent = val || '—';
 }
 
-// Gallery toggle
-document.getElementById('r-gallery-app').addEventListener('change', function() {
-    document.getElementById('r-gallery-name-field').classList.toggle('hidden', !this.checked);
-});
+// ──────────────────────────────────────────────
+// App Type
+// ──────────────────────────────────────────────
+function setAppType(type) {
+  selectedAppType = type;
+  document.getElementById('selectedAppType').value = type;
 
-// ─── Submit ───────────────────────────────────────────────────────
-function submitOnboarding() {
-    if (executionStarted) return;
+  const samlCard = document.getElementById('samlCard');
+  const oidcCard = document.getElementById('oidcCard');
+  const samlFields = document.getElementById('samlFields');
+  const oidcFields = document.getElementById('oidcFields');
 
-    const appType = document.querySelector('input[name="app_type"]:checked')?.value;
-    const appName = document.getElementById('r-app-name').value.trim();
-    const owners = document.getElementById('r-owners').value.trim().split('\n').map(s=>s.trim()).filter(Boolean);
-
-    if (!appType) { addLog('⚠️ Please select an application type.', 'error'); return; }
-    if (!appName) { addLog('⚠️ Application name is required.', 'error'); return; }
-    if (!owners.length) { addLog('⚠️ At least one owner email is required.', 'error'); return; }
-
-    executionStarted = true;
-    const btn = document.getElementById('r-submit-btn');
-    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i><span>Submitting...</span>';
-    btn.disabled = true;
-
-    document.getElementById('r-status-spinner').classList.remove('hidden');
-    document.getElementById('r-status-text').textContent = 'Starting execution...';
-    document.getElementById('r-progress-section').classList.remove('hidden');
-    clearLogs();
-    addLog('🚀 Submission started...', 'info');
-
-    const payload = {
-        app_type: appType,
-        app_name: appName,
-        owners: owners,
-        tenant: document.getElementById('r-tenant')?.value || 'Single-Tenant',
-        redirect_urls: (document.getElementById('r-redirect-urls')?.value || '').split('\n').map(s=>s.trim()).filter(Boolean),
-        gallery_app: document.getElementById('r-gallery-app')?.checked || false,
-        gallery_name: document.getElementById('r-gallery-name')?.value || '',
-    };
-
-    fetch('/onboard/submit', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
-    })
-    .then(r => r.json())
-    .then(data => {
-        if (data.success && data.execution_id) {
-            currentExecutionId = data.execution_id;
-            pollInterval = setInterval(() => pollStatus(data.execution_id), 600);
-        } else {
-            handleError(data.error || 'Failed to start execution.');
-        }
-    })
-    .catch(err => handleError('Network error: ' + err.message));
+  if (type === 'SAML') {
+    samlCard.classList.add('border-purple-500','bg-purple-50');
+    samlCard.classList.remove('border-slate-200');
+    oidcCard.classList.remove('border-blue-500','bg-blue-50');
+    oidcCard.classList.add('border-slate-200');
+    samlFields.classList.remove('hidden');
+    oidcFields.classList.add('hidden');
+  } else {
+    oidcCard.classList.add('border-blue-500','bg-blue-50');
+    oidcCard.classList.remove('border-slate-200');
+    samlCard.classList.remove('border-purple-500','bg-purple-50');
+    samlCard.classList.add('border-slate-200');
+    oidcFields.classList.remove('hidden');
+    samlFields.classList.add('hidden');
+    if (redirectRows.length === 0) addRedirectRow();
+  }
 }
 
-// ─── Polling ──────────────────────────────────────────────────────
-function pollStatus(eid) {
-    fetch(`/execution_status/${eid}`)
-        .then(r => r.json())
-        .then(data => {
-            if (data.error) { clearInterval(pollInterval); handleError(data.error); return; }
-            updateProgress(data.current_step || '', data.progress || 0);
-            renderLogs(data.logs || []);
-            if (data.status === 'completed') { clearInterval(pollInterval); handleComplete(true, data.result); }
-            else if (data.status === 'error') { clearInterval(pollInterval); handleComplete(false, data.error); }
-        })
-        .catch(err => console.error('Poll error:', err));
+// ──────────────────────────────────────────────
+// Redirect URLs
+// ──────────────────────────────────────────────
+function addRedirectRow(url = '') {
+  const id = 'rr_' + Date.now();
+  redirectRows.push(id);
+  const html = `<div class="redirect-row" id="${id}">
+    <select class="border border-slate-200 rounded-lg px-2 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-blue-400 bg-white">
+      <option value="Web">Web</option>
+      <option value="SPA">SPA</option>
+      <option value="Native">Native/Mobile</option>
+    </select>
+    <input type="text" value="${url}" placeholder="https://app.example.com/callback"
+      class="flex-1 border border-slate-200 rounded-lg px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-blue-400">
+    <button onclick="removeRedirectRow('${id}')" class="w-8 h-8 rounded-lg bg-red-50 hover:bg-red-100 text-red-400 hover:text-red-600 flex items-center justify-center flex-shrink-0 transition">
+      <i class="fas fa-times text-xs"></i>
+    </button>
+  </div>`;
+  document.getElementById('redirectContainer').insertAdjacentHTML('beforeend', html);
 }
 
-function updateProgress(step, pct) {
-    document.getElementById('r-current-step').textContent = step;
-    document.getElementById('r-progress-bar').style.width = pct + '%';
-    document.getElementById('r-progress-percent').textContent = pct + '%';
+function removeRedirectRow(id) {
+  document.getElementById(id)?.remove();
+  redirectRows = redirectRows.filter(r => r !== id);
 }
 
-function renderLogs(logs) {
-    const c = document.getElementById('r-execution-logs');
-    c.innerHTML = '';
-    logs.forEach(log => {
-        const div = document.createElement('div');
-        div.className = 'log-entry mb-1';
-        const colors = { error:'text-red-400', success:'text-green-400', info:'text-blue-400' };
-        div.innerHTML = `<span class="text-slate-500">[${log.timestamp}]</span> <span class="${colors[log.type]||'text-slate-300'}">${log.message}</span>`;
-        c.appendChild(div);
+// ──────────────────────────────────────────────
+// API Permissions Tags
+// ──────────────────────────────────────────────
+function addApiTag(val) {
+  val = val || document.getElementById('apiSearch').value.trim();
+  if (!val) return;
+  if (apiPermissions.includes(val)) { document.getElementById('apiSearch').value = ''; return; }
+  apiPermissions.push(val);
+  const tag = document.createElement('div');
+  tag.className = 'api-tag';
+  tag.id = 'api_' + val.replace(/\./g,'_');
+  tag.innerHTML = `${val} <button onclick="removeApiTag('${val}')" class="ml-1 text-blue-300 hover:text-blue-700"><i class="fas fa-times text-xs"></i></button>`;
+  document.getElementById('apiTagsContainer').appendChild(tag);
+  document.getElementById('apiSearch').value = '';
+}
+
+function removeApiTag(val) {
+  apiPermissions = apiPermissions.filter(a => a !== val);
+  document.getElementById('api_' + val.replace(/\./g,'_'))?.remove();
+}
+
+// ──────────────────────────────────────────────
+// Execute
+// ──────────────────────────────────────────────
+async function executeOnboard() {
+  const appName = document.getElementById('appName').value.trim();
+  const ownersRaw = document.getElementById('owners').value.trim();
+
+  if (!selectedAppType) { alert('Please select an Application Type (SAML or OIDC)'); return; }
+  if (!appName) { alert('Application Name is required'); return; }
+  if (!ownersRaw) { alert('At least one owner email is required'); return; }
+
+  const owners = ownersRaw.split('\n').map(o => o.trim()).filter(Boolean);
+
+  let formData = { app_type: selectedAppType, app_name: appName, owners };
+  formData.mode = 'ritm';
+  if (currentFormData) {
+    formData.ritm_number = currentFormData.ritm_number;
+    formData.risk_assessment = currentFormData.risk_assessment;
+  }
+
+  if (selectedAppType === 'SAML') {
+    formData.saml_entity_id = document.getElementById('samlEntityId').value.trim();
+    formData.saml_acs_url = document.getElementById('samlAcsUrl').value.trim();
+    formData.users_assignment = document.getElementById('usersAssignment').value.trim();
+    formData.groups_assignment = document.getElementById('groupsAssignment').value.trim();
+  } else {
+    formData.tenant = document.getElementById('tenantType').value;
+    // Collect redirect URLs with types
+    const rows = document.getElementById('redirectContainer').querySelectorAll('.redirect-row');
+    const redirectUrls = [];
+    rows.forEach(row => {
+      const type = row.querySelector('select').value;
+      const url = row.querySelector('input').value.trim();
+      if (url) redirectUrls.push({type, url});
     });
-    c.scrollTop = c.scrollHeight;
+    formData.redirect_urls = redirectUrls.map(r => r.url);
+    formData.redirect_urls_typed = redirectUrls;
+    formData.api_permissions = apiPermissions;
+  }
+
+  document.getElementById('executeBtn').disabled = true;
+  document.getElementById('executeBtn').innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Executing...';
+  clearLogs();
+  appendLog('🚀 Starting execution...', 'info');
+  document.getElementById('execStatusBadge').textContent = 'Running...';
+  document.getElementById('execStatusBadge').className = 'text-xs font-semibold text-blue-500 animate-pulse';
+
+  try {
+    const resp = await fetch('/onboard/submit', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify(formData)
+    });
+    const data = await resp.json();
+    if (!data.success) { appendLog('❌ ' + (data.error || 'Submit failed'), 'error'); return; }
+
+    const execId = data.execution_id;
+    executionInterval = setInterval(() => pollStatus(execId), 1500);
+  } catch(e) {
+    appendLog('❌ Network error: ' + e.message, 'error');
+    resetExecBtn();
+  }
 }
 
-function addLog(msg, type='info') {
-    const c = document.getElementById('r-execution-logs');
-    const div = document.createElement('div');
-    div.className = 'log-entry mb-1';
-    const colors = { error:'text-red-400', success:'text-green-400', info:'text-blue-400' };
-    div.innerHTML = `<span class="text-slate-500">[${new Date().toLocaleTimeString()}]</span> <span class="${colors[type]||'text-slate-300'}">${msg}</span>`;
-    if (c.querySelector('.text-slate-500:first-child')?.parentElement?.tagName === 'DIV'
-        && c.children.length === 1 && c.firstChild.textContent.includes('Fill in')) {
-        c.innerHTML = '';
+async function pollStatus(execId) {
+  try {
+    const resp = await fetch('/execution_status/' + execId);
+    const data = await resp.json();
+
+    // Render new logs
+    if (data.logs) {
+      const logsEl = document.getElementById('execLogs');
+      logsEl.innerHTML = '';
+      data.logs.forEach(l => appendLog(l.message, l.type));
     }
-    c.appendChild(div);
-    c.scrollTop = c.scrollHeight;
+
+    // Progress bar
+    if (data.progress !== undefined) {
+      document.getElementById('progressBar').style.width = data.progress + '%';
+    }
+
+    if (data.status === 'completed' || data.status === 'error') {
+      clearInterval(executionInterval);
+      executionInterval = null;
+      executionResult = data.result;
+
+      if (data.status === 'completed') {
+        document.getElementById('execStatusBadge').textContent = '✅ Completed';
+        document.getElementById('execStatusBadge').className = 'text-xs font-semibold text-green-600';
+        showCompletionSection(data.result);
+        saveToHistory(formData_last, data);
+      } else {
+        document.getElementById('execStatusBadge').textContent = '❌ Failed';
+        document.getElementById('execStatusBadge').className = 'text-xs font-semibold text-red-600';
+      }
+      resetExecBtn();
+    }
+  } catch(e) { console.error('Poll error:', e); }
+}
+
+let formData_last = {};
+const _origExec = executeOnboard;
+window.executeOnboard = async function() {
+  const appName = document.getElementById('appName').value.trim();
+  const ownersRaw = document.getElementById('owners').value.trim();
+  formData_last = {app_name: appName, owners: ownersRaw, mode:'ritm',
+    ritm_number: currentFormData?.ritm_number, app_type: selectedAppType};
+  await _origExec();
+};
+
+// ──────────────────────────────────────────────
+// Completion + Email
+// ──────────────────────────────────────────────
+function showCompletionSection(result) {
+  document.getElementById('completionSection').classList.remove('hidden');
+  document.getElementById('emailSection').classList.remove('hidden');
+
+  const appDetails = document.getElementById('appDetails');
+  appDetails.innerHTML = '';
+
+  if (!result) return;
+
+  const addDetail = (label, val) => {
+    if (!val) return;
+    appDetails.innerHTML += `<div class="detail-row">
+      <span class="detail-label">${label}</span>
+      <span class="detail-value font-mono text-xs">${val}</span>
+    </div>`;
+  };
+
+  if (result.app_registration) {
+    const ar = result.app_registration;
+    addDetail('Application (Client) ID', ar.client_id);
+    addDetail('Object ID', ar.id);
+    addDetail('Display Name', ar.display_name || document.getElementById('appName').value);
+    (ar.owners_added || []).forEach(o => addDetail('Owner Added', o));
+    // Direct Entra portal link for App Registration
+    if (ar.client_id) {
+      const portalUrl = `https://portal.azure.com/#view/Microsoft_AAD_RegisteredApps/ApplicationMenuBlade/~/Overview/appId/${ar.client_id}`;
+      appDetails.innerHTML += `<div class="detail-row">
+        <span class="detail-label">Open in Entra Portal</span>
+        <a href="${portalUrl}" target="_blank" class="detail-value text-blue-600 underline text-xs flex items-center gap-1">
+          <i class="fas fa-external-link-alt text-xs"></i> App Registration in Azure Portal
+        </a>
+      </div>`;
+    }
+  }
+  if (result.service_principal) {
+    const sp = result.service_principal;
+    addDetail('Enterprise App ID', sp.app_id);
+    addDetail('SP Object ID', sp.id);
+    (sp.owners_added || []).forEach(o => addDetail('Owner Added', o));
+    // Direct Entra portal link for Enterprise App (Service Principal)
+    if (sp.id) {
+      const epUrl = `https://portal.azure.com/#view/Microsoft_AAD_IAM/ManagedAppMenuBlade/~/Overview/objectId/${sp.id}`;
+      appDetails.innerHTML += `<div class="detail-row">
+        <span class="detail-label">Open in Entra Portal</span>
+        <a href="${epUrl}" target="_blank" class="detail-value text-blue-600 underline text-xs flex items-center gap-1">
+          <i class="fas fa-external-link-alt text-xs"></i> Enterprise App in Azure Portal
+        </a>
+      </div>`;
+    }
+  }
+  if (result.federated_metadata_url) {
+    document.getElementById('samlUrls').classList.remove('hidden');
+    const fedUrl = document.getElementById('fedMetaUrl');
+    fedUrl.href = result.federated_metadata_url;
+    fedUrl.textContent = result.federated_metadata_url;
+    const loginUrl = document.getElementById('appLoginUrl');
+    loginUrl.href = result.app_login_url || '#';
+    loginUrl.textContent = result.app_login_url || '—';
+  }
+
+  // Build email draft
+  const appName = document.getElementById('appName').value;
+  const fd = currentFormData || {};
+  const rfEmail = fd.requested_for_email || '';
+  const rbEmail = fd.requested_by_email || '';
+  const toEmails = [...new Set([rfEmail, rbEmail].filter(Boolean))].join('; ');
+  const boEmail = fd.business_owner_email || '';
+  const toEmail = fd.technical_owner_email || '';
+  const ccEmails = [...new Set([boEmail, toEmail].filter(Boolean))].join('; ');
+
+  document.getElementById('emailTo').value = toEmails;
+  document.getElementById('emailCc').value = ccEmails;
+  document.getElementById('emailSubject').value = `Azure Entra ID Application Onboarding Complete — ${appName}`;
+
+  let clientInfo = '';
+  if (result?.app_registration) clientInfo += `\n• Client ID: ${result.app_registration.client_id}`;
+  if (result?.service_principal) clientInfo += `\n• App ID: ${result.service_principal.app_id}`;
+  if (result?.federated_metadata_url) clientInfo += `\n• Federation Metadata URL: ${result.federated_metadata_url}`;
+
+  document.getElementById('emailBody').value =
+`Hi ${fd.requested_for_name || 'Team'},
+
+Your Azure Entra ID application has been successfully onboarded.
+
+Application Details:
+• Name: ${appName}
+• Type: ${selectedAppType === 'SAML' ? 'Enterprise Application (SAML)' : 'App Registration (OIDC)'}
+• RITM: ${fd.ritm_number || 'N/A'}
+• Risk Assessment: ${fd.risk_assessment || 'N/A'}${clientInfo}
+
+Please reach out if you have any questions.
+
+Regards,
+IAM Team`;
+}
+
+function sendViaOutlook() {
+  const to = encodeURIComponent(document.getElementById('emailTo').value);
+  const cc = encodeURIComponent(document.getElementById('emailCc').value);
+  const subject = encodeURIComponent(document.getElementById('emailSubject').value);
+  const body = encodeURIComponent(document.getElementById('emailBody').value);
+  window.location.href = `mailto:${to}?cc=${cc}&subject=${subject}&body=${body}`;
+}
+
+// ──────────────────────────────────────────────
+// Logs
+// ──────────────────────────────────────────────
+function appendLog(msg, type) {
+  const el = document.getElementById('execLogs');
+  const colors = { success:'text-green-400', error:'text-red-400', warning:'text-yellow-400', info:'text-slate-300' };
+  const color = colors[type] || 'text-slate-300';
+  const now = new Date().toLocaleTimeString('en-US',{hour12:false});
+  const div = document.createElement('div');
+  div.className = color + ' py-0.5';
+  div.textContent = `[${now}] ${msg}`;
+  if (el.querySelector('.text-slate-500')) el.innerHTML = '';
+  el.appendChild(div);
+  el.scrollTop = el.scrollHeight;
 }
 
 function clearLogs() {
-    document.getElementById('r-execution-logs').innerHTML = '';
+  document.getElementById('execLogs').innerHTML = '<span class="text-slate-500">ℹ Logs cleared.</span>';
+  document.getElementById('progressBar').style.width = '0%';
 }
 
-function handleComplete(success, result) {
-    executionComplete = true;
-    document.getElementById('r-status-spinner').classList.add('hidden');
-    const statusText = document.getElementById('r-status-text');
-    const statusSub = document.getElementById('r-status-sub');
-    const btn = document.getElementById('r-submit-btn');
-
-    btn.classList.add('hidden');
-    document.getElementById('r-completion-actions').classList.remove('hidden');
-
-    if (success) {
-        statusText.textContent = '✅ Application created successfully!';
-        statusText.className = 'text-sm font-semibold text-emerald-600';
-        statusSub.textContent = 'The app has been registered in Azure Entra ID.';
-        updateProgress('Completed!', 100);
-
-        // Show app details
-        if (result) {
-            const det = document.getElementById('r-app-details');
-            det.classList.remove('hidden');
-            det.innerHTML = buildAppDetailsHtml(result);
-        }
-        showToast('✅ Application created in Entra ID!', 'success');
-    } else {
-        statusText.textContent = '❌ Execution failed';
-        statusText.className = 'text-sm font-semibold text-red-600';
-        statusSub.textContent = typeof result === 'string' ? result : 'An error occurred during creation.';
-        updateProgress('Failed', 100);
-        showToast('❌ Application creation failed.', 'error');
-    }
+function resetExecBtn() {
+  const btn = document.getElementById('executeBtn');
+  btn.disabled = false;
+  btn.innerHTML = '<i class="fas fa-rocket mr-2"></i>Execute Application Creation';
 }
 
-function handleError(msg) {
-    executionComplete = true;
-    document.getElementById('r-status-spinner').classList.add('hidden');
-    document.getElementById('r-status-text').textContent = 'Execution failed';
-    document.getElementById('r-status-text').className = 'text-sm font-semibold text-red-600';
-    document.getElementById('r-status-sub').textContent = msg;
-    document.getElementById('r-submit-btn').classList.add('hidden');
-    document.getElementById('r-completion-actions').classList.remove('hidden');
-    addLog(`❌ Error: ${msg}`, 'error');
-    showToast('❌ ' + msg, 'error');
+// ──────────────────────────────────────────────
+// History (localStorage)
+// ──────────────────────────────────────────────
+function saveToHistory(fd, execData) {
+  const history = JSON.parse(localStorage.getItem('onboarding_history') || '[]');
+  const logs = execData.logs || [];
+  history.unshift({
+    id: Date.now().toString(),
+    timestamp: new Date().toISOString(),
+    method: 'RITM',
+    ritm_number: fd?.ritm_number || '',
+    app_name: document.getElementById('appName').value,
+    app_type: selectedAppType,
+    status: execData.status,
+    owners: document.getElementById('owners').value.split('\n').filter(Boolean),
+    logs: logs.slice(-30),
+    result: execData.result
+  });
+  localStorage.setItem('onboarding_history', JSON.stringify(history.slice(0, 100)));
 }
 
-function buildAppDetailsHtml(result) {
-    let html = '<div class="p-4 rounded-xl border border-slate-200 bg-slate-50 text-sm space-y-3">';
-    html += '<h5 class="font-bold text-slate-800 flex items-center space-x-2"><i class="fas fa-info-circle text-azure-blue"></i><span>Application Details</span></h5>';
-    if (result.app_registration) {
-        const a = result.app_registration;
-        html += `<div class="bg-blue-50 rounded-lg p-3 border border-blue-100">
-            <p class="font-semibold text-blue-800 text-xs uppercase tracking-wide mb-2">OIDC App Registration</p>
-            <div class="grid grid-cols-2 gap-1 text-xs">
-                <span class="text-slate-500">Client ID</span><span class="font-mono text-slate-800">${a.client_id||'N/A'}</span>
-                <span class="text-slate-500">Object ID</span><span class="font-mono text-slate-800">${a.id||'N/A'}</span>
-                <span class="text-slate-500">Tenant</span><span class="text-slate-800">${a.tenant_type||'N/A'}</span>
-            </div>
-            ${a.owners_added?.length ? `<div class="mt-2 pt-2 border-t border-blue-200"><p class="text-xs text-slate-500 mb-1">Owners</p><div class="flex flex-wrap gap-1">${a.owners_added.map(o=>`<span class="px-2 py-0.5 bg-blue-200 text-blue-800 rounded-full text-xs">${o}</span>`).join('')}</div></div>` : ''}
-        </div>`;
-    }
-    if (result.service_principal) {
-        const sp = result.service_principal;
-        const isSaml = !result.app_registration;
-        html += `<div class="bg-emerald-50 rounded-lg p-3 border border-emerald-100">
-            <p class="font-semibold text-emerald-800 text-xs uppercase tracking-wide mb-2">${isSaml ? 'SAML Enterprise App' : 'Enterprise App'}</p>
-            <div class="grid grid-cols-2 gap-1 text-xs">
-                <span class="text-slate-500">SP ID</span><span class="font-mono text-slate-800">${sp.id||'N/A'}</span>
-                <span class="text-slate-500">App ID</span><span class="font-mono text-slate-800">${sp.app_id||'N/A'}</span>
-            </div>
-            ${sp.owners_added?.length ? `<div class="mt-2 pt-2 border-t border-emerald-200"><p class="text-xs text-slate-500 mb-1">Owners</p><div class="flex flex-wrap gap-1">${sp.owners_added.map(o=>`<span class="px-2 py-0.5 bg-emerald-200 text-emerald-800 rounded-full text-xs">${o}</span>`).join('')}</div></div>` : ''}
-        </div>`;
-    }
-    html += '</div>';
-    return html;
-}
-
-function showToast(msg, type) {
-    const toast = document.createElement('div');
-    const colors = type === 'success'
-        ? 'bg-emerald-600 text-white'
-        : 'bg-red-600 text-white';
-    toast.className = `fixed top-5 right-5 z-50 px-5 py-3 rounded-xl shadow-xl ${colors} text-sm font-semibold flex items-center space-x-2 animate-slide-up`;
-    toast.innerHTML = `<span>${msg}</span><button onclick="this.parentElement.remove()" class="ml-3 opacity-70 hover:opacity-100">✕</button>`;
-    document.body.appendChild(toast);
-    setTimeout(() => { toast.style.opacity='0'; toast.style.transition='opacity 0.4s'; setTimeout(()=>toast.remove(),400); }, 5000);
-}
+// Initial state
+document.getElementById('ritmInput').focus();
 </script>
 {% endblock %}

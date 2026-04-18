@@ -82,6 +82,10 @@
                        class="flex items-center space-x-1.5 text-white/80 hover:text-white hover:bg-white/10 px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200">
                         <i class="fas fa-file-excel text-xs"></i><span>Excel</span>
                     </a>
+                    <a href="{{ url_for('history') }}"
+                       class="flex items-center space-x-1.5 text-white/80 hover:text-white hover:bg-white/10 px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200">
+                        <i class="fas fa-history text-xs"></i><span>History</span>
+                    </a>
                     {% if session.processed_data %}
                     <a href="{{ url_for('review') }}"
                        class="flex items-center space-x-1.5 text-white/80 hover:text-white hover:bg-white/10 px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200">
