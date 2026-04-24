@@ -1,0 +1,366 @@
+{% extends "base.html" %}
+{% block title %}History — Entra App Onboarding{% endblock %}
+
+{% block extra_head %}
+<style>
+  .section-card { background:#fff; border:1px solid #e2e8f0; border-radius:12px; box-shadow:0 1px 3px rgba(0,0,0,.07); }
+  .badge { display:inline-flex; align-items:center; gap:4px; border-radius:999px; padding:2px 10px; font-size:.7rem; font-weight:700; }
+  .dr { display:flex; gap:8px; padding:4px 0; border-bottom:1px solid #f1f5f9; font-size:.78rem; }
+  .dr:last-child { border-bottom:none; }
+  .dl { font-weight:600; color:#64748b; width:148px; flex-shrink:0; }
+  .dv { color:#1e293b; word-break:break-all; }
+  .dv a { color:#2563eb; text-decoration:underline; display:inline-flex; align-items:center; gap:3px; }
+  .panel-scroll { max-height:340px; overflow-y:auto; padding-right:4px; }
+  .panel-scroll::-webkit-scrollbar { width:4px; }
+  .panel-scroll::-webkit-scrollbar-thumb { background:#cbd5e1; border-radius:2px; }
+  .log-terminal { font-family:'Courier New',monospace; max-height:220px; overflow-y:auto; }
+  .log-terminal::-webkit-scrollbar { width:4px; }
+  .log-terminal::-webkit-scrollbar-thumb { background:#4b5563; border-radius:2px; }
+  .sec-label { font-size:.68rem; font-weight:700; text-transform:uppercase; letter-spacing:.06em; color:#94a3b8; margin-bottom:8px; }
+  .ritm-link { color:#7c3aed; font-weight:700; text-decoration:underline; cursor:pointer; font-family:monospace; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="animate-fade-in">
+  <!-- Header -->
+  <div class="flex items-center justify-between mb-6">
+    <div>
+      <h1 class="text-2xl font-bold text-slate-800 flex items-center gap-2">
+        <i class="fas fa-history text-blue-500"></i> Onboarding History
+      </h1>
+      <p class="text-slate-500 text-sm mt-1">All onboarding operations from this browser session</p>
+    </div>
+    <div class="flex gap-3">
+      <input id="historySearch" type="text" placeholder="Search by app name or RITM..."
+        oninput="renderHistory()"
+        class="border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 w-64">
+      <button onclick="clearHistory()"
+        class="flex items-center gap-2 bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 font-semibold px-4 py-2 rounded-xl transition text-sm">
+        <i class="fas fa-trash"></i> Clear All
+      </button>
+    </div>
+  </div>
+
+  <!-- Stats -->
+  <div class="grid grid-cols-4 gap-4 mb-6" id="statsBar"></div>
+
+  <!-- History List -->
+  <div id="historyList" class="space-y-4"></div>
+
+  <!-- Empty State -->
+  <div id="emptyState" class="hidden text-center py-24">
+    <div class="w-16 h-16 rounded-full bg-slate-100 flex items-center justify-center mx-auto mb-4">
+      <i class="fas fa-history text-slate-300 text-2xl"></i>
+    </div>
+    <h3 class="text-slate-400 font-semibold">No History Yet</h3>
+    <p class="text-slate-300 text-sm mt-1">Complete an onboarding via RITM to see records here.</p>
+    <a href="{{ url_for('index') }}" class="inline-flex items-center gap-2 mt-4 bg-blue-600 text-white text-sm font-semibold px-5 py-2 rounded-xl hover:bg-blue-700 transition">
+      <i class="fas fa-plus"></i> Start Onboarding
+    </a>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+const SNOW_BASE = 'https://dev265148.service-now.com';
+
+function getHistory() {
+  return JSON.parse(localStorage.getItem('onboarding_history') || '[]');
+}
+
+function renderHistory() {
+  const query = document.getElementById('historySearch').value.toLowerCase();
+  const history = getHistory().filter(h =>
+    !query ||
+    (h.app_name||'').toLowerCase().includes(query) ||
+    (h.ritm_number||'').toLowerCase().includes(query)
+  );
+
+  const total   = getHistory().length;
+  const success = getHistory().filter(h => h.status === 'completed').length;
+  const failed  = getHistory().filter(h => h.status === 'error').length;
+  const ritm    = getHistory().filter(h => h.method === 'RITM').length;
+
+  document.getElementById('statsBar').innerHTML = `
+    <div class="section-card px-4 py-3 flex items-center gap-3">
+      <div class="w-9 h-9 rounded-lg bg-blue-50 flex items-center justify-center"><i class="fas fa-list text-blue-500"></i></div>
+      <div><p class="text-xs text-slate-400">Total</p><p class="font-bold text-slate-700 text-lg">${total}</p></div>
+    </div>
+    <div class="section-card px-4 py-3 flex items-center gap-3">
+      <div class="w-9 h-9 rounded-lg bg-green-50 flex items-center justify-center"><i class="fas fa-check text-green-500"></i></div>
+      <div><p class="text-xs text-slate-400">Successful</p><p class="font-bold text-slate-700 text-lg">${success}</p></div>
+    </div>
+    <div class="section-card px-4 py-3 flex items-center gap-3">
+      <div class="w-9 h-9 rounded-lg bg-red-50 flex items-center justify-center"><i class="fas fa-times text-red-500"></i></div>
+      <div><p class="text-xs text-slate-400">Failed</p><p class="font-bold text-slate-700 text-lg">${failed}</p></div>
+    </div>
+    <div class="section-card px-4 py-3 flex items-center gap-3">
+      <div class="w-9 h-9 rounded-lg bg-purple-50 flex items-center justify-center"><i class="fas fa-ticket-alt text-purple-500"></i></div>
+      <div><p class="text-xs text-slate-400">Via RITM</p><p class="font-bold text-slate-700 text-lg">${ritm}</p></div>
+    </div>`;
+
+  const list  = document.getElementById('historyList');
+  const empty = document.getElementById('emptyState');
+  if (history.length === 0) { list.innerHTML = ''; empty.classList.remove('hidden'); return; }
+  empty.classList.add('hidden');
+
+  list.innerHTML = history.map(h => {
+    const statusBadge = h.status === 'completed'
+      ? '<span class="badge bg-green-100 text-green-700"><i class="fas fa-check-circle"></i>Success</span>'
+      : '<span class="badge bg-red-100 text-red-700"><i class="fas fa-times-circle"></i>Failed</span>';
+    const typeBadge = h.app_type === 'SAML'
+      ? '<span class="badge bg-violet-100 text-violet-700">SAML</span>'
+      : '<span class="badge bg-cyan-100 text-cyan-700">OIDC</span>';
+    const ts = h.timestamp ? new Date(h.timestamp).toLocaleString() : '—';
+    const ritmHref = h.ritm_number
+      ? `${SNOW_BASE}/nav_to.do?uri=sc_req_item.do?sysparm_query=number=${h.ritm_number}`
+      : '#';
+    const ritmBadge = h.ritm_number
+      ? `<a href="${ritmHref}" target="_blank" class="ritm-link text-xs">${h.ritm_number}</a>`
+      : '<span class="text-slate-400 text-xs">—</span>';
+
+    return `<div class="section-card overflow-hidden">
+      <div class="cursor-pointer flex items-center justify-between p-4 hover:bg-slate-50 transition"
+           onclick="toggleRecord('rec_${h.id}')">
+        <div class="flex items-center gap-3">
+          <div class="flex flex-col items-center gap-1">${typeBadge}</div>
+          <div>
+            <p class="font-bold text-slate-800 text-sm">${h.app_name || '—'}</p>
+            <div class="flex items-center gap-2 mt-0.5">${ritmBadge}<span class="text-slate-300 text-xs">•</span><span class="text-slate-400 text-xs">${ts}</span></div>
+          </div>
+        </div>
+        <div class="flex items-center gap-3">
+          ${statusBadge}
+          <button onclick="event.stopPropagation();exportRecord('${h.id}')" class="text-xs text-slate-400 hover:text-blue-600" title="Export JSON"><i class="fas fa-download"></i></button>
+          <button onclick="event.stopPropagation();deleteRecord('${h.id}')" class="text-xs text-slate-400 hover:text-red-600" title="Delete"><i class="fas fa-trash"></i></button>
+          <i class="fas fa-chevron-down text-slate-400 text-xs transition-transform" id="chev_${h.id}"></i>
+        </div>
+      </div>
+
+      <div id="rec_${h.id}" class="hidden border-t border-slate-100">
+        <!-- 2-column grid: Ticket | Form+Results -->
+        <div class="grid grid-cols-2 divide-x divide-slate-100">
+
+          <!-- COL 1: RITM / Ticket Information -->
+          <div class="p-4">
+            <p class="sec-label"><i class="fas fa-ticket-alt mr-1"></i>Ticket Information</p>
+            <div class="panel-scroll">
+              ${renderTicketInfo(h)}
+            </div>
+          </div>
+
+          <!-- COL 2: Configuration & Results -->
+          <div class="p-4">
+            <p class="sec-label"><i class="fas fa-check-double mr-1"></i>Configuration & Results</p>
+            <div class="panel-scroll">
+              <div class="mb-4">
+                <p class="text-[10px] uppercase font-bold text-slate-400 mb-1 border-b border-slate-100 pb-1">Onboarding Inputs</p>
+                ${renderFormInfo(h)}
+              </div>
+              <div>
+                <p class="text-[10px] uppercase font-bold text-slate-400 mb-1 border-b border-slate-100 pb-1">Generated Resources</p>
+                ${renderResult(h.result, h)}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Logs (full width) -->
+        <div class="border-t border-slate-100 p-4">
+          <p class="sec-label"><i class="fas fa-terminal mr-1"></i>Execution Logs</p>
+          <div class="log-terminal bg-slate-900 rounded-xl p-3 text-xs">
+            ${(h.logs||[]).map(l => {
+              const colors = {success:'text-green-400',error:'text-red-400',warning:'text-yellow-400',info:'text-slate-300'};
+              return `<div class="${colors[l.type]||'text-slate-300'} py-0.5">[${l.timestamp||''}] ${l.message||''}</div>`;
+            }).join('') || '<span class="text-slate-500">No logs recorded</span>'}
+          </div>
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// ── Helpers ──────────────────────────────────────────────────────────────────
+function dr(label, value) {
+  if (!value) return '';
+  return `<div class="dr"><span class="dl">${label}</span><span class="dv">${value}</span></div>`;
+}
+function drList(label, arr) {
+  if (!arr || !arr.length) return '';
+  return `<div class="dr"><span class="dl">${label}</span><span class="dv">${arr.join(', ')}</span></div>`;
+}
+function drLink(label, url, text) {
+  if (!url) return '';
+  return `<div class="dr"><span class="dl">${label}</span><span class="dv"><a href="${url}" target="_blank"><i class="fas fa-external-link-alt text-xs"></i> ${text}</a></span></div>`;
+}
+
+function renderTicketInfo(h) {
+  const fd = h.ritm_data || {};
+  const sv = fd.snow_variables || {};
+  let html = '';
+
+  // Basic ticket info
+  const ritmHref = h.ritm_number
+    ? `${SNOW_BASE}/nav_to.do?uri=sc_req_item.do?sysparm_query=number=${h.ritm_number}` : '#';
+  if (h.ritm_number) {
+    html += `<div class="dr"><span class="dl">RITM Number</span><span class="dv"><a href="${ritmHref}" target="_blank" class="text-purple-600 font-bold"><i class="fas fa-external-link-alt text-xs"></i> ${h.ritm_number}</a></span></div>`;
+  }
+  html += dr('State',       fd.ritm_state   || '—');
+  html += dr('Priority',    fd.ritm_priority || '—');
+  html += dr('Catalog',     fd.ritm_catalog  || '—');
+  html += dr('Opened',      fd.ritm_opened   || '—');
+  html += dr('Requested For', fd.requested_for  || '—');
+  html += dr('Requested By',  fd.requested_by   || '—');
+  html += dr('Business Owner', fd.business_owner || '—');
+  html += dr('Tech Owner',   fd.technical_owner  || '—');
+  html += dr('Location',    fd.location      || '—');
+
+  // ServiceNow variables
+  html += dr('App Name',    fd.app_name      || sv.app_name || '—');
+  html += dr('Environment', fd.environment   || sv.environment || '—');
+  html += dr('App Type',    fd.app_type      || sv.app_type || '—');
+  html += dr('Auth Method', fd.auth_method   || sv.auth_method || '—');
+  html += dr('Risk Assessment', fd.risk_assessment || sv.risk_assessment || '—');
+  html += dr('Users Assigned?', fd.users_assigned || '—');
+  html += dr('Users List',  fd.users_assigned_list || '—');
+  html += dr('SAML Entity ID', fd.saml_entity_id || '—');
+  html += dr('SAML ACS URL',   fd.saml_acs_url   || '—');
+  html += dr('Redirect URIs Required', fd.redirect_uris_required || '—');
+  html += dr('Redirect URIs', fd.redirect_urls || '—');
+  html += dr('API Permissions Required', fd.api_permissions_required || '—');
+  html += dr('API Permission Details', fd.api_permissions_details || '—');
+  html += dr('Tenant Scope', fd.tenant_scope || '—');
+  html += dr('Purpose',     fd.purpose       || '—');
+  html += dr('Additional Info', fd.additional_info || '—');
+
+  // Other unknown variables
+  const knownKeys = new Set(['ritm_number','ritm_state','ritm_priority','ritm_catalog','ritm_opened',
+    'requested_for','requested_by','business_owner','technical_owner','location',
+    'app_name','environment','app_type','auth_method','risk_assessment',
+    'users_assigned','users_assigned_list','saml_entity_id','saml_acs_url',
+    'redirect_uris_required','redirect_urls','api_permissions_required','api_permissions_details',
+    'tenant_scope','purpose','additional_info','notes','snow_variables',
+    'processed_app_name','suggested_app_type','suggested_tenant','owners']);
+  const extra = Object.keys(fd).filter(k => !knownKeys.has(k) && fd[k]);
+  extra.forEach(k => { html += dr(k.replace(/_/g,' '), String(fd[k])); });
+
+  return html || '<p class="text-xs text-slate-400 italic">No ticket data</p>';
+}
+
+function renderFormInfo(h) {
+  const form = h.form || {};
+  let html = '';
+
+  html += dr('App Name',  h.app_name || '—');
+  html += dr('App Type',  h.app_type || '—');
+  html += drList('Owners', h.owners);
+  html += dr('Status',    h.status || '—');
+  html += dr('Timestamp', h.timestamp ? new Date(h.timestamp).toLocaleString() : '—');
+
+  if (h.app_type === 'SAML') {
+    html += dr('Gallery App',   form.gallery ? 'Yes' : 'No');
+    if (form.gallery_name) html += dr('Gallery Name', form.gallery_name);
+    html += dr('Entity ID',  form.entity_id  || '—');
+    html += dr('ACS URL',    form.acs_url    || '—');
+    drList('Assigned Users',  form.saml_users);
+    html += drList('Assigned Users',  form.saml_users);
+    html += drList('Assigned Groups', form.saml_groups);
+  } else {
+    html += dr('Tenant Type', form.tenant || '—');
+    html += drList('Redirect URLs',   form.redirect_urls);
+    html += drList('API Permissions', form.api_permissions);
+    html += drList('Assigned Users',  form.oidc_users);
+    html += drList('Assigned Groups', form.oidc_groups);
+  }
+
+  return html || '<p class="text-xs text-slate-400 italic">No form data</p>';
+}
+
+function renderResult(result, h) {
+  if (!result && !h) return '<p class="text-xs text-slate-400 italic">No result data</p>';
+  let html = '';
+
+  const isSAML = (h && h.app_type === 'SAML') || result?.service_principal;
+
+  if (isSAML) {
+    const appId   = (h && h.sp_app_id)    || result?.service_principal?.app_id || '';
+    const spId    = (h && h.sp_object_id) || result?.service_principal?.id     || '';
+    const owners  = result?.service_principal?.owners_added || [];
+    const users   = (h && h.saml_users)   || result?.service_principal?.assigned_users  || [];
+    const groups  = (h && h.saml_groups)  || result?.service_principal?.assigned_groups || [];
+    const eid     = (h && h.entity_id)    || result?.service_principal?.entity_id || '';
+    const acs     = (h && h.acs_url)      || result?.service_principal?.acs_url   || '';
+    const fedUrl  = (h && h.federated_metadata_url) || result?.federated_metadata_url || '';
+    const spUrl   = (h && h.sp_portal_url) || result?.sp_portal_url || '';
+
+    html += dr('App (Client) ID', appId);
+    html += dr('SP Object ID',    spId);
+    html += drList('Owners',          owners);
+    html += drList('Assigned Users',  users);
+    html += drList('Assigned Groups', groups);
+    html += dr('Entity ID', eid);
+    html += dr('ACS URL',   acs);
+    html += drLink('Federation Metadata XML', fedUrl, 'Download XML');
+    html += drLink('Enterprise Application',  spUrl,  'Open in Entra Portal');
+  } else {
+    const clientId  = (h && h.client_id)   || result?.app_registration?.client_id || '';
+    const objId     = (h && h.app_obj_id)  || result?.app_registration?.id         || '';
+    const tenant    = (h && h.tenant_type) || result?.app_registration?.tenant_type || '';
+    const owners    = result?.app_registration?.owners_added || [];
+    const users     = (h && h.oidc_users)  || result?.assigned_users  || [];
+    const groups    = (h && h.oidc_groups) || result?.assigned_groups || [];
+    const redirects = (h && h.redirect_urls)    || result?.app_registration?.redirect_urls         || [];
+    const apiPerms  = (h && h.api_permissions)  || result?.app_registration?.api_permissions_added || [];
+    const regUrl    = (h && h.app_reg_portal_url)  || result?.app_reg_portal_url || '';
+    const spUrl     = (h && h.oidc_sp_portal_url)  || result?.sp_portal_url     || '';
+
+    html += dr('Application (Client) ID', clientId);
+    html += dr('Object ID',   objId);
+    html += dr('Tenant Type', tenant);
+    html += drList('Owners',          owners);
+    html += drList('Assigned Users',  users);
+    html += drList('Assigned Groups', groups);
+    html += drList('Redirect URLs',   redirects);
+    html += drList('API Permissions', apiPerms);
+    html += drLink('App Registration',    regUrl, 'Open in Entra Portal');
+    html += drLink('Enterprise Application', spUrl, 'Open in Entra Portal');
+  }
+
+  return html || '<p class="text-xs text-slate-400 italic">No application details</p>';
+}
+
+function toggleRecord(id) {
+  const el   = document.getElementById(id);
+  const chev = document.getElementById('chev_' + id.replace('rec_', ''));
+  el.classList.toggle('hidden');
+  chev.style.transform = el.classList.contains('hidden') ? '' : 'rotate(180deg)';
+}
+
+function exportRecord(id) {
+  const h = getHistory().find(r => r.id == id);
+  if (!h) return;
+  const blob = new Blob([JSON.stringify(h, null, 2)], {type:'application/json'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `onboarding_${h.app_name||id}_${(h.timestamp||'').slice(0,10)||'export'}.json`;
+  a.click();
+}
+
+function deleteRecord(id) {
+  if (!confirm('Delete this record?')) return;
+  const history = getHistory().filter(h => h.id != id);
+  localStorage.setItem('onboarding_history', JSON.stringify(history));
+  renderHistory();
+}
+
+function clearHistory() {
+  if (!confirm('Clear all onboarding history? This cannot be undone.')) return;
+  localStorage.removeItem('onboarding_history');
+  renderHistory();
+}
+
+renderHistory();
+</script>
+{% endblock %}

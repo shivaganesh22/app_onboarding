@@ -1,0 +1,725 @@
+{% extends "base.html" %}
+{% block title %}Manual Onboarding — Azure AD App Onboarding{% endblock %}
+
+{% block extra_head %}
+<style>
+  .log-terminal { font-family: 'Courier New', monospace; min-height: 220px; max-height: 380px; overflow-y: auto; }
+  .log-terminal::-webkit-scrollbar { width: 4px; }
+  .log-terminal::-webkit-scrollbar-thumb { background:#4b5563; border-radius: 2px; }
+  .section-card { background:#fff; border:1px solid #e2e8f0; border-radius:12px; box-shadow:0 1px 3px rgba(0,0,0,.07); }
+  .detail-row { display:flex; gap:8px; padding:6px 0; border-bottom:1px solid #f1f5f9; font-size:.82rem; }
+  .detail-row:last-child { border-bottom:none; }
+  .detail-label { font-weight:600; color:#475569; min-width:140px; flex-shrink:0; }
+  .api-tag { display:inline-flex; align-items:center; gap:4px; background:#eff6ff; color:#2563eb; border:1px solid #bfdbfe; border-radius:6px; padding:2px 8px; font-size:.75rem; }
+  .redirect-row { display:flex; gap:6px; align-items:start; margin-bottom:6px; }
+  .redirect-row select { width:130px; flex-shrink:0; }
+  .redirect-row input { flex:1; }
+  .preview-section { background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px; padding:12px 14px; }
+  .preview-item { display:flex; gap:8px; padding:5px 0; font-size:.8rem; border-bottom:1px solid #f1f5f9; }
+  .preview-item:last-child { border-bottom:none; }
+  .preview-label { font-weight:600; color:#64748b; width:130px; flex-shrink:0; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="animate-fade-in">
+  <!-- Header -->
+  <div class="flex items-center justify-between mb-6">
+    <div class="flex items-center gap-3">
+      <a href="{{ url_for('index') }}" class="w-8 h-8 rounded-full flex items-center justify-center bg-slate-100 hover:bg-slate-200 text-slate-600 transition-all">
+        <i class="fas fa-arrow-left text-sm"></i>
+      </a>
+      <div>
+        <h1 class="text-2xl font-bold text-slate-800">Manual Onboarding</h1>
+        <p class="text-slate-500 text-sm">Directly fill application details and create an Azure AD application</p>
+      </div>
+    </div>
+    <span class="flex items-center gap-2 bg-blue-600 text-white text-sm font-semibold px-4 py-1.5 rounded-full shadow">
+      <i class="fas fa-edit"></i> Manual Entry
+    </span>
+  </div>
+
+  <div class="grid grid-cols-12 gap-6">
+
+    <!-- ══ LEFT: Live Preview ══ -->
+    <div class="col-span-4">
+      <div class="sticky top-20 space-y-4">
+        <!-- Preview Card -->
+        <div class="section-card p-4">
+          <h3 class="text-xs font-bold text-slate-500 uppercase tracking-widest mb-3 flex items-center gap-2">
+            <i class="fas fa-eye text-blue-400"></i> Live Preview
+          </h3>
+          <div id="preview" class="preview-section space-y-0">
+            <div class="preview-item"><span class="preview-label">App Name</span><span id="prev_app_name" class="text-slate-700 flex-1">—</span></div>
+            <div class="preview-item"><span class="preview-label">Type</span><span id="prev_type" class="text-slate-700 flex-1">—</span></div>
+            <div class="preview-item"><span class="preview-label">Environment</span><span id="prev_env" class="text-slate-700 flex-1">—</span></div>
+            <div class="preview-item"><span class="preview-label">Tenant</span><span id="prev_tenant" class="text-slate-700 flex-1">—</span></div>
+            <div class="preview-item"><span class="preview-label">Requested For</span><span id="prev_req_for" class="text-slate-700 flex-1">—</span></div>
+            <div class="preview-item"><span class="preview-label">Business Owner</span><span id="prev_biz" class="text-slate-700 flex-1">—</span></div>
+            <div class="preview-item"><span class="preview-label">Technical Owner</span><span id="prev_tech" class="text-slate-700 flex-1">—</span></div>
+            <div class="preview-item"><span class="preview-label">Owners</span><span id="prev_owners" class="text-slate-700 flex-1 text-xs font-mono">—</span></div>
+          </div>
+        </div>
+
+        <!-- Tips -->
+        <div class="section-card p-4">
+          <h3 class="text-xs font-bold text-slate-500 uppercase tracking-widest mb-3 flex items-center gap-2">
+            <i class="fas fa-lightbulb text-yellow-400"></i> Tips
+          </h3>
+          <ul class="text-xs text-slate-500 space-y-2">
+            <li><i class="fas fa-check text-green-500 mr-1"></i>App name will be auto-formatted as <em>Name - Environment</em></li>
+            <li><i class="fas fa-check text-green-500 mr-1"></i>Owners auto-deduplicated from people fields</li>
+            <li><i class="fas fa-check text-green-500 mr-1"></i>SAML fields appear only for Enterprise Apps</li>
+            <li><i class="fas fa-check text-green-500 mr-1"></i>Risk Assessment # must be a 5-digit number</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══ RIGHT: Form + Execute ══ -->
+    <div class="col-span-8 space-y-5">
+
+      <!-- Step 1: Ticket / Request Info -->
+      <div class="section-card p-5">
+        <div class="flex items-center gap-2 mb-4">
+          <div class="w-7 h-7 rounded-full bg-blue-600 text-white flex items-center justify-center text-sm font-bold">1</div>
+          <h2 class="font-bold text-slate-700">Request Information</h2>
+        </div>
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block text-xs font-semibold text-slate-600 mb-1">Risk Assessment #</label>
+            <input id="riskAssessment" type="text" placeholder="e.g. 12367" maxlength="5"
+              oninput="updatePreview()"
+              class="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 font-mono">
+            <p id="riskMsg" class="text-xs mt-1 hidden"></p>
+          </div>
+          <div>
+            <label class="block text-xs font-semibold text-slate-600 mb-1">Reference / Ticket #</label>
+            <input id="ticketRef" type="text" placeholder="e.g. INC001234 (optional)"
+              class="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400">
+          </div>
+        </div>
+      </div>
+
+      <!-- Step 2: People -->
+      <div class="section-card p-5">
+        <div class="flex items-center gap-2 mb-4">
+          <div class="w-7 h-7 rounded-full bg-blue-600 text-white flex items-center justify-center text-sm font-bold">2</div>
+          <h2 class="font-bold text-slate-700">People</h2>
+        </div>
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block text-xs font-semibold text-slate-600 mb-1">Requested For (email)</label>
+            <input id="reqFor" type="email" placeholder="user@company.com" oninput="autoFillOwners()"
+              class="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400">
+          </div>
+          <div>
+            <label class="block text-xs font-semibold text-slate-600 mb-1">Requested By (email)</label>
+            <input id="reqBy" type="email" placeholder="requester@company.com"
+              class="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400">
+          </div>
+          <div>
+            <label class="block text-xs font-semibold text-slate-600 mb-1">Business Owner (email)</label>
+            <input id="bizOwner" type="email" placeholder="bizowner@company.com" oninput="autoFillOwners()"
+              class="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400">
+          </div>
+          <div>
+            <label class="block text-xs font-semibold text-slate-600 mb-1">Technical Owner (email)</label>
+            <input id="techOwner" type="email" placeholder="techowner@company.com" oninput="autoFillOwners()"
+              class="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400">
+          </div>
+        </div>
+        <div class="mt-3">
+          <div class="flex items-center justify-between mb-1">
+            <label class="block text-xs font-semibold text-slate-600">All Application Owners <span class="text-red-500">*</span></label>
+            <button onclick="autoFillOwners()" class="text-xs text-blue-600 hover:text-blue-800">
+              <i class="fas fa-sync mr-1"></i>Auto-fill from above
+            </button>
+          </div>
+          <textarea id="owners" rows="3" placeholder="owner@company.com&#10;owner2@company.com"
+            oninput="updatePreview()"
+            class="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 resize-none font-mono"></textarea>
+          <p class="text-xs text-slate-400 mt-1">One email per line. Will be registered as owners on the Entra app.</p>
+        </div>
+      </div>
+
+      <!-- Step 3: App Config -->
+      <div class="section-card p-5">
+        <div class="flex items-center gap-2 mb-4">
+          <div class="w-7 h-7 rounded-full bg-blue-600 text-white flex items-center justify-center text-sm font-bold">3</div>
+          <h2 class="font-bold text-slate-700">Application Configuration</h2>
+        </div>
+
+        <!-- App Type -->
+        <div class="mb-4">
+          <label class="block text-xs font-semibold text-slate-600 mb-2">Application Type <span class="text-red-500">*</span></label>
+          <div class="grid grid-cols-2 gap-3">
+            <label id="samlCard" onclick="setAppType('SAML')"
+              class="cursor-pointer border-2 border-slate-200 rounded-xl p-3 flex items-center gap-3 transition-all hover:border-purple-300">
+              <div class="w-8 h-8 rounded-lg bg-purple-100 flex items-center justify-center">
+                <i class="fas fa-shield-alt text-purple-600 text-sm"></i>
+              </div>
+              <div>
+                <p class="text-sm font-bold text-slate-700">SAML</p>
+                <p class="text-xs text-slate-400">Enterprise Application</p>
+              </div>
+            </label>
+            <label id="oidcCard" onclick="setAppType('OIDC')"
+              class="cursor-pointer border-2 border-slate-200 rounded-xl p-3 flex items-center gap-3 transition-all hover:border-blue-300">
+              <div class="w-8 h-8 rounded-lg bg-blue-100 flex items-center justify-center">
+                <i class="fas fa-key text-blue-600 text-sm"></i>
+              </div>
+              <div>
+                <p class="text-sm font-bold text-slate-700">OIDC</p>
+                <p class="text-xs text-slate-400">App Registration</p>
+              </div>
+            </label>
+          </div>
+          <input type="hidden" id="selectedAppType" value="">
+        </div>
+
+        <!-- App Name + Environment -->
+        <div class="grid grid-cols-2 gap-3 mb-4">
+          <div>
+            <label class="block text-xs font-semibold text-slate-600 mb-1">Application Name <span class="text-red-500">*</span></label>
+            <input id="appNameBase" type="text" placeholder="MyApplication" oninput="buildAppName()"
+              class="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400">
+          </div>
+          <div>
+            <label class="block text-xs font-semibold text-slate-600 mb-1">Environment</label>
+            <select id="environment" onchange="buildAppName()"
+              class="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400">
+              <option value="">— Select —</option>
+              <option value="Dev">Dev</option>
+              <option value="Test">Test</option>
+              <option value="Prod">Prod</option>
+            </select>
+          </div>
+        </div>
+        <div class="mb-4">
+          <label class="block text-xs font-semibold text-slate-600 mb-1">Final App Name</label>
+          <input id="appName" type="text"
+            class="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-blue-400 bg-slate-50"
+            placeholder="Will be auto-filled" oninput="updatePreview()">
+          <p class="text-xs text-slate-400 mt-1">You can override this value directly.</p>
+        </div>
+
+        <!-- SAML Fields -->
+        <div id="samlFields" class="hidden space-y-4 border-t border-slate-100 pt-4">
+          <p class="text-xs font-bold text-purple-600 uppercase tracking-wide"><i class="fas fa-shield-alt mr-1"></i>SAML Configuration</p>
+          <div class="grid grid-cols-2 gap-3">
+            <div>
+              <label class="block text-xs font-semibold text-slate-600 mb-1">SAML Entity ID</label>
+              <input id="samlEntityId" type="text" placeholder="https://app.example.com/saml/metadata"
+                class="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400">
+            </div>
+            <div>
+              <label class="block text-xs font-semibold text-slate-600 mb-1">SAML ACS URL</label>
+              <input id="samlAcsUrl" type="text" placeholder="https://app.example.com/saml/acs"
+                class="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400">
+            </div>
+          </div>
+          <div>
+            <label class="block text-xs font-semibold text-slate-600 mb-1">Users Assignment (emails/UPNs, one per line)</label>
+            <textarea id="usersAssignment" rows="2" placeholder="user1@company.com&#10;user2@company.com"
+              class="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 resize-none"></textarea>
+          </div>
+          <div>
+            <label class="block text-xs font-semibold text-slate-600 mb-1">Groups Assignment (group names/IDs, one per line)</label>
+            <textarea id="groupsAssignment" rows="2" placeholder="GroupA&#10;GroupB"
+              class="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 resize-none"></textarea>
+          </div>
+        </div>
+
+        <!-- OIDC Fields -->
+        <div id="oidcFields" class="hidden space-y-4 border-t border-slate-100 pt-4">
+          <p class="text-xs font-bold text-blue-600 uppercase tracking-wide"><i class="fas fa-key mr-1"></i>OIDC Configuration</p>
+          <div>
+            <label class="block text-xs font-semibold text-slate-600 mb-1">Tenant Type</label>
+            <select id="tenantType" onchange="updatePreview()"
+              class="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400">
+              <option value="Single-Tenant">Single-Tenant</option>
+              <option value="Multi-Tenant">Multi-Tenant</option>
+            </select>
+          </div>
+
+          <!-- Redirect URLs -->
+          <div>
+            <div class="flex items-center justify-between mb-1">
+              <label class="block text-xs font-semibold text-slate-600">Redirect URLs</label>
+              <button onclick="addRedirectRow()" class="text-xs text-blue-600 hover:text-blue-800 font-semibold">
+                <i class="fas fa-plus mr-1"></i>Add URL
+              </button>
+            </div>
+            <div id="redirectContainer" class="space-y-2"></div>
+          </div>
+
+          <!-- API Permissions -->
+          <div>
+            <label class="block text-xs font-semibold text-slate-600 mb-1">API Permissions</label>
+            <div class="flex gap-2 mb-2">
+              <input id="apiSearch" type="text" placeholder="e.g. User.Read, Mail.Send..."
+                list="commonApiList"
+                class="flex-1 border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
+                onkeydown="if(event.key==='Enter'){event.preventDefault();addApiTag();}">
+              <datalist id="commonApiList">
+                <option value="User.Read"><option value="User.ReadWrite"><option value="Mail.Read">
+                <option value="Mail.Send"><option value="Calendars.Read"><option value="Files.Read.All">
+                <option value="Directory.Read.All"><option value="Group.Read.All"><option value="offline_access">
+                <option value="openid"><option value="profile">
+              </datalist>
+              <button onclick="addApiTag()" class="bg-blue-600 text-white text-xs font-semibold px-3 py-2 rounded-lg hover:bg-blue-700 transition">Add</button>
+            </div>
+            <div id="apiTagsContainer" class="flex flex-wrap gap-1.5 min-h-[28px]"></div>
+          </div>
+
+          <!-- Expose APIs -->
+          <div>
+            <label class="block text-xs font-semibold text-slate-600 mb-1">Expose API Scopes/Roles (optional)</label>
+            <textarea id="exposeApis" rows="2" placeholder="e.g. api://your-app-id/access_as_user"
+              class="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 resize-none"></textarea>
+          </div>
+        </div>
+
+        <!-- Additional Info -->
+        <div class="mt-4 border-t border-slate-100 pt-4">
+          <label class="block text-xs font-semibold text-slate-600 mb-1">Additional Notes (optional)</label>
+          <textarea id="additionalInfo" rows="2" placeholder="Any additional context for this onboarding request..."
+            class="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 resize-none"></textarea>
+        </div>
+      </div>
+
+      <!-- Execute Section -->
+      <div class="section-card p-5">
+        <div class="flex items-center gap-2 mb-4">
+          <div class="w-7 h-7 rounded-full bg-blue-600 text-white flex items-center justify-center text-sm font-bold">4</div>
+          <h2 class="font-bold text-slate-700">Execute Application Creation</h2>
+        </div>
+        <div class="flex items-center justify-between mb-3">
+          <p class="text-xs text-slate-500"><i class="fas fa-terminal mr-1"></i>Execution Logs</p>
+          <span id="execStatusBadge" class="text-xs font-semibold text-slate-400">Ready to execute</span>
+        </div>
+        <div id="execLogs" class="log-terminal bg-slate-900 rounded-xl p-4 text-xs text-slate-300 scrollbar-thin">
+          <span class="text-slate-500">ℹ Click "Execute Application Creation" to begin...</span>
+        </div>
+        <div class="mt-3 h-1.5 bg-slate-100 rounded-full overflow-hidden">
+          <div id="progressBar" class="h-full bg-blue-500 rounded-full transition-all duration-500" style="width:0%"></div>
+        </div>
+        <div class="flex justify-between mt-4">
+          <button onclick="clearLogs()" class="text-sm text-slate-400 hover:text-slate-600 transition">
+            <i class="fas fa-trash mr-1 text-xs"></i>Clear
+          </button>
+          <button onclick="executeOnboard()" id="executeBtn"
+            class="flex items-center gap-2 bg-green-600 hover:bg-green-700 disabled:bg-slate-300 disabled:cursor-not-allowed text-white font-semibold px-6 py-2.5 rounded-xl transition-all shadow text-sm">
+            <i class="fas fa-rocket"></i> Execute Application Creation
+          </button>
+        </div>
+      </div>
+
+      <!-- Completion Details -->
+      <div id="completionSection" class="hidden section-card p-5 animate-fade-in">
+        <h3 class="flex items-center gap-2 font-bold text-slate-700 mb-4">
+          <i class="fas fa-check-circle text-green-500 text-lg"></i> Application Created Successfully
+        </h3>
+        <div id="appDetails" class="space-y-2 mb-4"></div>
+        <div id="samlUrls" class="hidden mt-3 p-3 bg-purple-50 border border-purple-200 rounded-xl space-y-2">
+          <p class="text-xs font-bold text-purple-700"><i class="fas fa-link mr-1"></i>SAML Federation URLs</p>
+          <div class="detail-row">
+            <span class="detail-label text-purple-600" style="min-width:170px">Federation Metadata URL</span>
+            <a id="fedMetaUrl" href="#" target="_blank" class="text-blue-600 underline text-xs break-all">#</a>
+          </div>
+          <div class="detail-row">
+            <span class="detail-label text-purple-600" style="min-width:170px">App Login URL</span>
+            <a id="appLoginUrl" href="#" target="_blank" class="text-blue-600 underline text-xs break-all">#</a>
+          </div>
+        </div>
+      </div>
+
+      <!-- Email Section -->
+      <div id="emailSection" class="hidden section-card p-5 animate-fade-in">
+        <div class="flex items-center gap-2 mb-4">
+          <div class="w-7 h-7 rounded-full bg-indigo-500 text-white flex items-center justify-center text-sm"><i class="fas fa-envelope"></i></div>
+          <h3 class="font-bold text-slate-700">Notification Email</h3>
+          <span class="text-xs bg-indigo-100 text-indigo-700 font-semibold px-2 py-0.5 rounded-full">Outlook</span>
+        </div>
+        <div class="space-y-3">
+          <div>
+            <label class="block text-xs font-semibold text-slate-500 mb-1">To</label>
+            <input id="emailTo" type="text" class="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400">
+          </div>
+          <div>
+            <label class="block text-xs font-semibold text-slate-500 mb-1">CC</label>
+            <input id="emailCc" type="text" class="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400">
+          </div>
+          <div>
+            <label class="block text-xs font-semibold text-slate-500 mb-1">Subject</label>
+            <input id="emailSubject" type="text" class="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400">
+          </div>
+          <div>
+            <label class="block text-xs font-semibold text-slate-500 mb-1">Body</label>
+            <textarea id="emailBody" rows="8" class="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 resize-none font-mono"></textarea>
+          </div>
+          <button onclick="sendViaOutlook()"
+            class="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold px-5 py-2.5 rounded-xl transition-all shadow text-sm">
+            <i class="fas fa-paper-plane"></i> Send via Outlook
+          </button>
+        </div>
+      </div>
+
+    </div><!-- end right col -->
+  </div><!-- end grid -->
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+// ──────────────────────────────────────
+// State
+// ──────────────────────────────────────
+let selectedAppType = '';
+let executionInterval = null;
+let executionResult = null;
+let apiPermissions = [];
+
+// ──────────────────────────────────────
+// App Type Selection
+// ──────────────────────────────────────
+function setAppType(type) {
+  selectedAppType = type;
+  document.getElementById('selectedAppType').value = type;
+
+  const samlCard = document.getElementById('samlCard');
+  const oidcCard = document.getElementById('oidcCard');
+  const samlFields = document.getElementById('samlFields');
+  const oidcFields = document.getElementById('oidcFields');
+
+  if (type === 'SAML') {
+    samlCard.classList.add('border-purple-500','bg-purple-50');
+    samlCard.classList.remove('border-slate-200');
+    oidcCard.classList.remove('border-blue-500','bg-blue-50');
+    oidcCard.classList.add('border-slate-200');
+    samlFields.classList.remove('hidden');
+    oidcFields.classList.add('hidden');
+  } else {
+    oidcCard.classList.add('border-blue-500','bg-blue-50');
+    oidcCard.classList.remove('border-slate-200');
+    samlCard.classList.remove('border-purple-500','bg-purple-50');
+    samlCard.classList.add('border-slate-200');
+    oidcFields.classList.remove('hidden');
+    samlFields.classList.add('hidden');
+    if (document.getElementById('redirectContainer').children.length === 0) addRedirectRow();
+  }
+  updatePreview();
+}
+
+// ──────────────────────────────────────
+// Build App Name
+// ──────────────────────────────────────
+function buildAppName() {
+  const base = document.getElementById('appNameBase').value.trim();
+  const env = document.getElementById('environment').value;
+  const final = env ? `${base} - ${env}` : base;
+  document.getElementById('appName').value = final;
+  updatePreview();
+}
+
+// ──────────────────────────────────────
+// Auto-fill Owners
+// ──────────────────────────────────────
+function autoFillOwners() {
+  const emails = [
+    document.getElementById('reqFor').value.trim(),
+    document.getElementById('bizOwner').value.trim(),
+    document.getElementById('techOwner').value.trim()
+  ].filter(Boolean);
+  const deduped = [...new Set(emails)];
+  document.getElementById('owners').value = deduped.join('\n');
+  updatePreview();
+}
+
+// ──────────────────────────────────────
+// Live Preview
+// ──────────────────────────────────────
+function updatePreview() {
+  setText('prev_app_name', document.getElementById('appName').value);
+  setText('prev_type', selectedAppType || '—');
+  setText('prev_env', document.getElementById('environment').value || '—');
+  const tenant = document.getElementById('tenantType');
+  setText('prev_tenant', tenant ? tenant.value : '—');
+  setText('prev_req_for', document.getElementById('reqFor').value || '—');
+  setText('prev_biz', document.getElementById('bizOwner').value || '—');
+  setText('prev_tech', document.getElementById('techOwner').value || '—');
+  setText('prev_owners', document.getElementById('owners').value || '—');
+
+  // Risk assessment validation
+  const ra = document.getElementById('riskAssessment').value.trim();
+  const riskMsg = document.getElementById('riskMsg');
+  if (ra) {
+    const valid = /^(?!12345$)(?!.*(\d)\1{4})\d{5}$/.test(ra);
+    riskMsg.classList.remove('hidden');
+    riskMsg.className = 'text-xs mt-1 ' + (valid ? 'text-green-600' : 'text-red-500');
+    riskMsg.textContent = valid ? '✓ Valid risk assessment number' : '✗ Must be a 5-digit number (not all same digit)';
+  } else {
+    riskMsg.classList.add('hidden');
+  }
+}
+
+function setText(id, val) {
+  const el = document.getElementById(id);
+  if (el) el.textContent = val || '—';
+}
+
+// ──────────────────────────────────────
+// Redirect Rows
+// ──────────────────────────────────────
+function addRedirectRow(url = '') {
+  const id = 'rr_' + Date.now();
+  const html = `<div class="redirect-row" id="${id}">
+    <select class="border border-slate-200 rounded-lg px-2 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-blue-400 bg-white">
+      <option value="Web">Web</option>
+      <option value="SPA">SPA</option>
+      <option value="Native">Native/Mobile</option>
+    </select>
+    <input type="text" value="${url}" placeholder="https://app.example.com/callback"
+      class="flex-1 border border-slate-200 rounded-lg px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-blue-400">
+    <button onclick="document.getElementById('${id}').remove()"
+      class="w-8 h-8 rounded-lg bg-red-50 hover:bg-red-100 text-red-400 hover:text-red-600 flex items-center justify-center flex-shrink-0 transition">
+      <i class="fas fa-times text-xs"></i>
+    </button>
+  </div>`;
+  document.getElementById('redirectContainer').insertAdjacentHTML('beforeend', html);
+}
+
+// ──────────────────────────────────────
+// API Permissions Tags
+// ──────────────────────────────────────
+function addApiTag(val) {
+  val = val || document.getElementById('apiSearch').value.trim();
+  if (!val) return;
+  if (apiPermissions.includes(val)) { document.getElementById('apiSearch').value = ''; return; }
+  apiPermissions.push(val);
+  const tag = document.createElement('div');
+  tag.className = 'api-tag';
+  tag.id = 'api_' + val.replace(/\./g,'_');
+  tag.innerHTML = `${val} <button onclick="removeApiTag('${val}')" class="ml-1 text-blue-300 hover:text-blue-700"><i class="fas fa-times text-xs"></i></button>`;
+  document.getElementById('apiTagsContainer').appendChild(tag);
+  document.getElementById('apiSearch').value = '';
+}
+
+function removeApiTag(val) {
+  apiPermissions = apiPermissions.filter(a => a !== val);
+  document.getElementById('api_' + val.replace(/\./g,'_'))?.remove();
+}
+
+// ──────────────────────────────────────
+// Execute
+// ──────────────────────────────────────
+async function executeOnboard() {
+  const appName = document.getElementById('appName').value.trim();
+  const ownersRaw = document.getElementById('owners').value.trim();
+
+  if (!selectedAppType) { alert('Please select an Application Type'); return; }
+  if (!appName) { alert('Application Name is required'); return; }
+  if (!ownersRaw) { alert('At least one owner email is required'); return; }
+
+  const owners = ownersRaw.split('\n').map(o => o.trim()).filter(Boolean);
+  let formData = {
+    app_type: selectedAppType,
+    app_name: appName,
+    owners,
+    mode: 'manual',
+    risk_assessment: document.getElementById('riskAssessment').value.trim(),
+    ticket_ref: document.getElementById('ticketRef').value.trim(),
+    additional_info: document.getElementById('additionalInfo').value.trim()
+  };
+
+  if (selectedAppType === 'SAML') {
+    formData.saml_entity_id = document.getElementById('samlEntityId').value.trim();
+    formData.saml_acs_url = document.getElementById('samlAcsUrl').value.trim();
+    formData.users_assignment = document.getElementById('usersAssignment').value.trim();
+    formData.groups_assignment = document.getElementById('groupsAssignment').value.trim();
+  } else {
+    formData.tenant = document.getElementById('tenantType').value;
+    const rows = document.getElementById('redirectContainer').querySelectorAll('.redirect-row');
+    const rUrls = [];
+    rows.forEach(row => {
+      const type = row.querySelector('select').value;
+      const url = row.querySelector('input').value.trim();
+      if (url) rUrls.push(url);
+    });
+    formData.redirect_urls = rUrls;
+    formData.api_permissions = apiPermissions;
+    formData.expose_apis = document.getElementById('exposeApis').value.trim();
+  }
+
+  window._lastFormData = formData;
+
+  document.getElementById('executeBtn').disabled = true;
+  document.getElementById('executeBtn').innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Executing...';
+  clearLogs();
+  appendLog('🚀 Starting execution...', 'info');
+  document.getElementById('execStatusBadge').textContent = 'Running...';
+  document.getElementById('execStatusBadge').className = 'text-xs font-semibold text-blue-500 animate-pulse';
+
+  try {
+    const resp = await fetch('/onboard/submit', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify(formData)
+    });
+    const data = await resp.json();
+    if (!data.success) { appendLog('❌ ' + (data.error||'Submit failed'), 'error'); resetExecBtn(); return; }
+    executionInterval = setInterval(() => pollStatus(data.execution_id), 1500);
+  } catch(e) { appendLog('❌ ' + e.message,'error'); resetExecBtn(); }
+}
+
+async function pollStatus(execId) {
+  try {
+    const resp = await fetch('/execution_status/'+execId);
+    const data = await resp.json();
+    if (data.logs) {
+      const el = document.getElementById('execLogs');
+      el.innerHTML = '';
+      data.logs.forEach(l => appendLog(l.message, l.type));
+    }
+    if (data.progress !== undefined) document.getElementById('progressBar').style.width = data.progress+'%';
+
+    if (data.status==='completed'||data.status==='error') {
+      clearInterval(executionInterval); executionInterval=null;
+      executionResult = data.result;
+      if (data.status==='completed') {
+        document.getElementById('execStatusBadge').textContent='✅ Completed';
+        document.getElementById('execStatusBadge').className='text-xs font-semibold text-green-600';
+        showCompletionSection(data.result);
+        saveToHistory(window._lastFormData, data);
+      } else {
+        document.getElementById('execStatusBadge').textContent='❌ Failed';
+        document.getElementById('execStatusBadge').className='text-xs font-semibold text-red-600';
+      }
+      resetExecBtn();
+    }
+  } catch(e){ console.error(e); }
+}
+
+function showCompletionSection(result) {
+  document.getElementById('completionSection').classList.remove('hidden');
+  document.getElementById('emailSection').classList.remove('hidden');
+
+  const appDetails = document.getElementById('appDetails');
+  appDetails.innerHTML='';
+  if(!result) return;
+  const addRow = (l,v) => { if(!v) return;
+    appDetails.innerHTML+=`<div class="detail-row"><span class="detail-label text-slate-600">${l}</span><span class="text-slate-800 font-mono text-xs">${v}</span></div>`; };
+
+  if(result.app_registration){
+    const ar=result.app_registration;
+    addRow('Client (Application) ID',ar.client_id);
+    addRow('Object ID',ar.id);
+    addRow('Display Name',ar.display_name||document.getElementById('appName').value);
+    (ar.owners_added||[]).forEach(o=>addRow('Owner Added',o));
+    if (ar.client_id) {
+      const portalUrl = `https://portal.azure.com/#view/Microsoft_AAD_RegisteredApps/ApplicationMenuBlade/~/Overview/appId/${ar.client_id}`;
+      appDetails.innerHTML += `<div class="detail-row"><span class="detail-label text-slate-600">Open in Entra Portal</span><a href="${portalUrl}" target="_blank" class="text-blue-600 underline text-xs flex items-center gap-1"><i class="fas fa-external-link-alt text-xs"></i> App Registration in Azure Portal</a></div>`;
+    }
+  }
+  if(result.service_principal){
+    const sp=result.service_principal;
+    addRow('Enterprise App ID',sp.app_id);
+    addRow('SP Object ID',sp.id);
+    (sp.owners_added||[]).forEach(o=>addRow('Owner Added',o));
+    if (sp.id) {
+      const epUrl = `https://portal.azure.com/#view/Microsoft_AAD_IAM/ManagedAppMenuBlade/~/Overview/objectId/${sp.id}`;
+      appDetails.innerHTML += `<div class="detail-row"><span class="detail-label text-slate-600">Open in Entra Portal</span><a href="${epUrl}" target="_blank" class="text-blue-600 underline text-xs flex items-center gap-1"><i class="fas fa-external-link-alt text-xs"></i> Enterprise App in Azure Portal</a></div>`;
+    }
+  }
+  if(result.federated_metadata_url){
+    document.getElementById('samlUrls').classList.remove('hidden');
+    document.getElementById('fedMetaUrl').href=result.federated_metadata_url;
+    document.getElementById('fedMetaUrl').textContent=result.federated_metadata_url;
+    document.getElementById('appLoginUrl').href=result.app_login_url||'#';
+    document.getElementById('appLoginUrl').textContent=result.app_login_url||'—';
+  }
+
+  // Email draft
+  const appName = document.getElementById('appName').value;
+  const rfEmail = document.getElementById('reqFor').value;
+  const rbEmail = document.getElementById('reqBy').value;
+  const toEmails = [...new Set([rfEmail,rbEmail].filter(Boolean))].join('; ');
+  const ccEmails = [...new Set([document.getElementById('bizOwner').value, document.getElementById('techOwner').value].filter(Boolean))].join('; ');
+
+  document.getElementById('emailTo').value = toEmails;
+  document.getElementById('emailCc').value = ccEmails;
+  document.getElementById('emailSubject').value = `Azure Entra ID Application Onboarding Complete — ${appName}`;
+
+  let clientInfo='';
+  if(result?.app_registration) clientInfo+=`\n• Client ID: ${result.app_registration.client_id}`;
+  if(result?.service_principal) clientInfo+=`\n• App ID: ${result.service_principal.app_id}`;
+  if(result?.federated_metadata_url) clientInfo+=`\n• Federation Metadata URL: ${result.federated_metadata_url}`;
+
+  document.getElementById('emailBody').value =
+`Hi Team,
+
+Your Azure Entra ID application has been successfully onboarded.
+
+Application Details:
+• Name: ${appName}
+• Type: ${selectedAppType==='SAML'?'Enterprise Application (SAML)':'App Registration (OIDC)'}${clientInfo}
+
+Please reach out if you have any questions.
+
+Regards,
+IAM Team`;
+}
+
+function sendViaOutlook(){
+  const to=encodeURIComponent(document.getElementById('emailTo').value);
+  const cc=encodeURIComponent(document.getElementById('emailCc').value);
+  const subj=encodeURIComponent(document.getElementById('emailSubject').value);
+  const body=encodeURIComponent(document.getElementById('emailBody').value);
+  window.location.href=`mailto:${to}?cc=${cc}&subject=${subj}&body=${body}`;
+}
+
+// ──────────────────────────────────────
+// Logs
+// ──────────────────────────────────────
+function appendLog(msg, type) {
+  const el = document.getElementById('execLogs');
+  const colors={success:'text-green-400',error:'text-red-400',warning:'text-yellow-400',info:'text-slate-300'};
+  const now = new Date().toLocaleTimeString('en-US',{hour12:false});
+  const div=document.createElement('div');
+  div.className=(colors[type]||'text-slate-300')+' py-0.5';
+  div.textContent=`[${now}] ${msg}`;
+  if(el.querySelector('.text-slate-500')) el.innerHTML='';
+  el.appendChild(div);
+  el.scrollTop=el.scrollHeight;
+}
+function clearLogs(){
+  document.getElementById('execLogs').innerHTML='<span class="text-slate-500">ℹ Logs cleared.</span>';
+  document.getElementById('progressBar').style.width='0%';
+}
+function resetExecBtn(){
+  const b=document.getElementById('executeBtn');
+  b.disabled=false;
+  b.innerHTML='<i class="fas fa-rocket mr-2"></i>Execute Application Creation';
+}
+
+// ──────────────────────────────────────
+// History
+// ──────────────────────────────────────
+function saveToHistory(fd, execData){
+  const history=JSON.parse(localStorage.getItem('onboarding_history')||'[]');
+  history.unshift({
+    id:Date.now().toString(),
+    timestamp:new Date().toISOString(),
+    method:'Manual',
+    ritm_number:'',
+    app_name:fd?.app_name||'',
+    app_type:selectedAppType,
+    status:execData.status,
+    owners:fd?.owners||[],
+    logs:(execData.logs||[]).slice(-30),
+    result:execData.result
+  });
+  localStorage.setItem('onboarding_history',JSON.stringify(history.slice(0,100)));
+}
+</script>
+{% endblock %}

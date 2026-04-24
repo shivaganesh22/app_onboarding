@@ -1,0 +1,1065 @@
+{% extends "base.html" %}
+{% block title %}RITM Onboarding — Azure AD App Onboarding{% endblock %}
+
+{% block extra_head %}
+<style>
+  .log-terminal { font-family: 'Courier New', monospace; min-height: 220px; max-height: 380px; overflow-y: auto; }
+  .log-terminal::-webkit-scrollbar { width: 4px; }
+  .log-terminal::-webkit-scrollbar-thumb { background:#4b5563; border-radius:2px; }
+  .section-card { background:#fff; border:1px solid #e2e8f0; border-radius:12px; box-shadow:0 1px 3px rgba(0,0,0,.07); }
+  .detail-row { display:flex; gap:8px; padding:7px 0; border-bottom:1px solid #f1f5f9; font-size:.82rem; }
+  .detail-row:last-child { border-bottom:none; }
+  .detail-label { font-weight:600; color:#475569; min-width:160px; flex-shrink:0; }
+  .detail-value { color:#1e293b; word-break:break-word; }
+  .badge-state { font-size:.7rem; padding:2px 8px; border-radius:999px; font-weight:600; letter-spacing:.02em; }
+  .section-title { font-size:.68rem; font-weight:700; letter-spacing:.08em; color:#94a3b8; text-transform:uppercase; margin-bottom:10px; padding-bottom:6px; border-bottom:2px solid #e2e8f0; }
+  .redirect-row { display:flex; gap:6px; align-items:start; margin-bottom:6px; }
+  .redirect-row select { width:130px; flex-shrink:0; }
+  .redirect-row input { flex:1; }
+  .api-tag { display:inline-flex; align-items:center; gap:4px; background:#eff6ff; color:#2563eb; border:1px solid #bfdbfe; border-radius:6px; padding:2px 8px; font-size:.75rem; }
+  .api-tag button { color:#93c5fd; hover:color:#1d4ed8; }
+  .person-card { background:#f8fafc; border:1px solid #e2e8f0; border-radius:8px; padding:8px 10px; font-size:.8rem; }
+  .tab-btn { padding:6px 16px; border-radius:8px; font-size:.8rem; font-weight:600; cursor:pointer; transition:all .2s; }
+  .tab-btn.active { background:#0078d4; color:#fff; }
+  .tab-btn:not(.active) { background:#f1f5f9; color:#64748b; }
+  .tab-btn:not(.active):hover { background:#e2e8f0; }
+  .completion-card { background:linear-gradient(135deg,#ecfdf5,#d1fae5); border:1px solid #6ee7b7; border-radius:12px; }
+  .note-badge { display:flex; align-items:center; gap:8px; padding:8px 12px; border-radius:8px; font-size:.8rem; font-weight:500; margin-bottom:6px; }
+  .note-success { background:#f0fdf4; border:1px solid #bbf7d0; color:#166534; }
+  .note-warning { background:#fffbeb; border:1px solid #fde68a; color:#92400e; }
+  .note-error   { background:#fef2f2; border:1px solid #fecaca; color:#991b1b; }
+  .note-info    { background:#eff6ff; border:1px solid #bfdbfe; color:#1e40af; }
+  #splitPanel { display:none; }
+  .left-scroll { max-height: calc(100vh - 180px); overflow-y: auto; position: sticky; top: 80px; }
+  .left-scroll::-webkit-scrollbar { width: 4px; }
+  .left-scroll::-webkit-scrollbar-thumb { background:#cbd5e1; border-radius:2px; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="animate-fade-in">
+  <!-- Header -->
+  <div class="flex items-center justify-between mb-6">
+    <div class="flex items-center gap-3">
+      <a href="{{ url_for('index') }}" class="w-8 h-8 rounded-full flex items-center justify-center bg-slate-100 hover:bg-slate-200 text-slate-600 transition-all">
+        <i class="fas fa-arrow-left text-sm"></i>
+      </a>
+      <div>
+        <h1 class="text-2xl font-bold text-slate-800">RITM-Based Onboarding</h1>
+        <p class="text-slate-500 text-sm">Fetch ServiceNow ticket data and create an Azure AD application</p>
+      </div>
+    </div>
+    <span class="flex items-center gap-2 bg-green-600 text-white text-sm font-semibold px-4 py-1.5 rounded-full shadow">
+      <i class="fas fa-ticket-alt"></i> ServiceNow
+    </span>
+  </div>
+
+  <!-- RITM Input -->
+  <div class="section-card p-5 mb-5">
+    <div class="flex items-center gap-2 mb-4">
+      <div class="w-7 h-7 rounded-full bg-blue-600 text-white flex items-center justify-center text-sm font-bold">1</div>
+      <h2 class="font-bold text-slate-700">Enter RITM Number</h2>
+    </div>
+    <div class="flex gap-3">
+      <div class="flex-1 relative">
+        <span class="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"><i class="fas fa-hashtag text-sm"></i></span>
+        <input id="ritmInput" type="text" placeholder="E.G. RITM0012345"
+          class="w-full pl-9 pr-4 py-2.5 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-transparent text-sm font-mono uppercase tracking-wider"
+          onkeydown="if(event.key==='Enter') fetchRITM()">
+      </div>
+      <button onclick="fetchRITM()" id="fetchBtn"
+        class="flex items-center gap-2 bg-green-600 hover:bg-green-700 text-white font-semibold px-5 py-2.5 rounded-xl transition-all shadow text-sm">
+        <i class="fas fa-search"></i> Fetch RITM Data
+      </button>
+    </div>
+    <div id="fetchError" class="hidden mt-3 text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-4 py-2.5">
+      <i class="fas fa-exclamation-circle mr-1"></i><span id="fetchErrorMsg"></span>
+    </div>
+  </div>
+
+  <!-- Validation Notes (shown after fetch) -->
+  <div id="notesSection" class="hidden section-card p-5 mb-5 animate-fade-in">
+    <h3 class="flex items-center gap-2 font-bold text-slate-700 mb-3">
+      <i class="fas fa-clipboard-check text-blue-500"></i> Processing Notes
+    </h3>
+    <div id="notesList"></div>
+  </div>
+
+  <!-- Split Panel -->
+  <div id="splitPanel" class="grid grid-cols-12 gap-5">
+
+    <!-- ══ LEFT: SNOW Details ══ -->
+    <div class="col-span-5">
+      <div class="left-scroll space-y-4">
+
+        <!-- RITM Header Card -->
+        <div class="section-card p-4">
+          <div class="section-title"><i class="fas fa-ticket-alt mr-1"></i>RITM Details</div>
+          <div class="detail-row">
+            <span class="detail-label">RITM Number</span>
+            <span class="detail-value">
+              <a id="ritmLink" href="#" target="_blank" class="text-blue-600 hover:text-blue-800 font-semibold underline" id="ritmNumberDisplay"></a>
+            </span>
+          </div>
+          <div class="detail-row">
+            <span class="detail-label">State</span>
+            <span class="detail-value"><span id="ritmState" class="badge-state bg-blue-100 text-blue-700">—</span></span>
+          </div>
+          <div class="detail-row">
+            <span class="detail-label">Catalog Item</span>
+            <span class="detail-value" id="ritmCatalog">—</span>
+          </div>
+          <div class="detail-row">
+            <span class="detail-label">Priority</span>
+            <span class="detail-value" id="ritmPriority">—</span>
+          </div>
+          <div class="detail-row">
+            <span class="detail-label">Opened</span>
+            <span class="detail-value" id="ritmOpened">—</span>
+          </div>
+        </div>
+
+        <!-- Core App Info -->
+        <div class="section-card p-4">
+          <div class="section-title"><i class="fas fa-cog mr-1"></i>Application Details</div>
+          <div class="detail-row"><span class="detail-label">Risk Assessment #</span><span class="detail-value font-mono" id="sv_risk_assessment">—</span></div>
+          <div class="detail-row"><span class="detail-label">App Name</span><span class="detail-value font-semibold" id="sv_app_name">—</span></div>
+          <div class="detail-row"><span class="detail-label">Environment</span><span class="detail-value" id="sv_environment">—</span></div>
+          <div class="detail-row"><span class="detail-label">App Type</span><span class="detail-value" id="sv_app_type">—</span></div>
+          <div class="detail-row"><span class="detail-label">Auth Method</span><span class="detail-value" id="sv_auth_method">—</span></div>
+          <div class="detail-row"><span class="detail-label">Admin Consent</span><span class="detail-value" id="sv_admin_consent">—</span></div>
+        </div>
+
+        <!-- People -->
+        <div class="section-card p-4">
+          <div class="section-title"><i class="fas fa-users mr-1"></i>People</div>
+          <div id="peopleCards" class="space-y-2"></div>
+        </div>
+
+        <!-- SAML Fields (conditional) -->
+        <div id="samlSection" class="section-card p-4 hidden">
+          <div class="section-title"><i class="fas fa-shield-alt mr-1"></i>Enterprise Application (SAML)</div>
+          <div class="detail-row"><span class="detail-label">Users Assigned?</span><span class="detail-value" id="sv_users_assigned">—</span></div>
+          <div class="detail-row"><span class="detail-label">Users/Groups List</span><span class="detail-value" id="sv_users_list">—</span></div>
+          <div class="detail-row"><span class="detail-label">SAML Entity ID</span><span class="detail-value font-mono text-xs break-all" id="sv_saml_entity_id">—</span></div>
+          <div class="detail-row"><span class="detail-label">SAML ACS URL</span><span class="detail-value font-mono text-xs break-all" id="sv_saml_acs_url">—</span></div>
+          <div class="detail-row"><span class="detail-label">SAML Attributes</span><span class="detail-value" id="sv_saml_attributes">—</span></div>
+          <div class="detail-row"><span class="detail-label">Metadata XML?</span><span class="detail-value" id="sv_metadata_xml">—</span></div>
+        </div>
+
+        <!-- App Registration Fields (conditional) -->
+        <div id="oidcSection" class="section-card p-4 hidden">
+          <div class="section-title"><i class="fas fa-key mr-1"></i>App Registration (OIDC)</div>
+          <div class="detail-row"><span class="detail-label">API Permissions?</span><span class="detail-value" id="sv_api_req">—</span></div>
+          <div class="detail-row"><span class="detail-label">API Details</span><span class="detail-value" id="sv_api_details">—</span></div>
+          <div class="detail-row"><span class="detail-label">Expose APIs?</span><span class="detail-value" id="sv_expose_apis">—</span></div>
+          <div class="detail-row"><span class="detail-label">Expose Details</span><span class="detail-value" id="sv_expose_details">—</span></div>
+          <div class="detail-row"><span class="detail-label">Redirect URIs?</span><span class="detail-value" id="sv_redir_req">—</span></div>
+          <div class="detail-row"><span class="detail-label">Redirect URIs</span><span class="detail-value font-mono text-xs" id="sv_redirect_uris">—</span></div>
+          <div class="detail-row"><span class="detail-label">Tenant Scope</span><span class="detail-value" id="sv_tenant_scope">—</span></div>
+          <div class="detail-row"><span class="detail-label">Cert/Secret?</span><span class="detail-value" id="sv_cert_secret">—</span></div>
+        </div>
+
+        <!-- Additional Notes -->
+        <div class="section-card p-4">
+          <div class="section-title"><i class="fas fa-sticky-note mr-1"></i>Additional Notes</div>
+          <div class="detail-row"><span class="detail-label">Purpose</span><span class="detail-value" id="sv_purpose">—</span></div>
+          <div class="detail-row"><span class="detail-label">Additional Info</span><span class="detail-value" id="sv_additional_info">—</span></div>
+          <div class="detail-row"><span class="detail-label">Contact Mode</span><span class="detail-value" id="sv_contact_mode">—</span></div>
+          <div class="detail-row"><span class="detail-label">Location</span><span class="detail-value" id="sv_location">—</span></div>
+        </div>
+
+        <!-- Other Variables -->
+        <div class="section-card p-4">
+          <div class="section-title"><i class="fas fa-list mr-1"></i>Other Variables</div>
+          <div id="otherVarsContainer" class="text-xs text-slate-400 italic">No additional variables</div>
+        </div>
+
+      </div><!-- end left-scroll -->
+    </div><!-- end left col -->
+
+    <!-- ══ RIGHT: Form + Execution ══ -->
+    <div class="col-span-7 space-y-5">
+
+      <!-- App Config Form -->
+      <div class="section-card p-5">
+        <div class="flex items-center gap-2 mb-4">
+          <div class="w-7 h-7 rounded-full bg-blue-600 text-white flex items-center justify-center text-sm font-bold">2</div>
+          <h2 class="font-bold text-slate-700">Application Configuration</h2>
+        </div>
+
+        <!-- App Type -->
+        <div class="mb-4">
+          <label class="block text-xs font-semibold text-slate-600 mb-2">Application Type</label>
+          <div class="grid grid-cols-2 gap-3">
+            <label id="samlCard" onclick="setAppType('SAML')"
+              class="cursor-pointer border-2 border-slate-200 rounded-xl p-3 flex items-center gap-3 transition-all hover:border-blue-300">
+              <div class="w-8 h-8 rounded-lg bg-purple-100 flex items-center justify-center">
+                <i class="fas fa-shield-alt text-purple-600 text-sm"></i>
+              </div>
+              <div>
+                <p class="text-sm font-bold text-slate-700">SAML</p>
+                <p class="text-xs text-slate-400">Enterprise Application</p>
+              </div>
+            </label>
+            <label id="oidcCard" onclick="setAppType('OIDC')"
+              class="cursor-pointer border-2 border-slate-200 rounded-xl p-3 flex items-center gap-3 transition-all hover:border-blue-300">
+              <div class="w-8 h-8 rounded-lg bg-blue-100 flex items-center justify-center">
+                <i class="fas fa-key text-blue-600 text-sm"></i>
+              </div>
+              <div>
+                <p class="text-sm font-bold text-slate-700">OIDC</p>
+                <p class="text-xs text-slate-400">App Registration</p>
+              </div>
+            </label>
+          </div>
+          <input type="hidden" id="selectedAppType" value="">
+        </div>
+
+        <!-- App Name -->
+        <div class="mb-4">
+          <label class="block text-xs font-semibold text-slate-600 mb-1">Application Name <span class="text-red-500">*</span></label>
+          <input id="appName" type="text" placeholder="AppName - Environment"
+            class="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400">
+        </div>
+
+        <!-- SAML-specific fields -->
+        <div id="samlFields" class="hidden space-y-4">
+
+          <!-- Gallery Toggle -->
+          <div class="flex items-center justify-between bg-slate-50 rounded-xl px-3 py-2.5 border border-slate-200">
+            <div>
+              <p class="text-xs font-semibold text-slate-700">Gallery Application</p>
+              <p class="text-xs text-slate-400">Use a pre-integrated app from the Entra gallery</p>
+            </div>
+            <label class="relative inline-flex items-center cursor-pointer">
+              <input type="checkbox" id="galleryAppToggle" class="sr-only peer" onchange="toggleGalleryName()">
+              <div class="w-9 h-5 bg-slate-300 peer-focus:ring-2 peer-focus:ring-blue-400 rounded-full peer peer-checked:bg-blue-600 after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:after:translate-x-full"></div>
+            </label>
+          </div>
+          <!-- Gallery App Name (shown when gallery toggle is on) -->
+          <div id="galleryNameField" class="hidden">
+            <label class="block text-xs font-semibold text-slate-600 mb-1">Gallery App Name</label>
+            <input id="galleryName" type="text" placeholder="e.g. AWS IAM Identity Center, Salesforce..."
+              class="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400">
+          </div>
+
+          <div class="grid grid-cols-2 gap-3">
+            <div>
+              <label class="block text-xs font-semibold text-slate-600 mb-1">SAML Entity ID</label>
+              <input id="samlEntityId" type="text" placeholder="https://app.example.com/saml/metadata"
+                class="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400">
+            </div>
+            <div>
+              <label class="block text-xs font-semibold text-slate-600 mb-1">SAML ACS URL</label>
+              <input id="samlAcsUrl" type="text" placeholder="https://app.example.com/saml/acs"
+                class="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400">
+            </div>
+          </div>
+
+          <!-- User Assignment -->
+          <div>
+            <label class="block text-xs font-semibold text-slate-600 mb-1">Users Assignment</label>
+            <textarea id="usersAssignment" rows="2" placeholder="Emails or UPNs (one per line) to assign to this app"
+              class="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 resize-none"></textarea>
+          </div>
+          <!-- Group Assignment -->
+          <div>
+            <label class="block text-xs font-semibold text-slate-600 mb-1">Groups Assignment</label>
+            <textarea id="groupsAssignment" rows="2" placeholder="Group names or IDs (one per line) to assign to this app"
+              class="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 resize-none"></textarea>
+          </div>
+        </div>
+
+        <!-- OIDC-specific fields -->
+        <div id="oidcFields" class="hidden space-y-4">
+          <!-- Tenant -->
+          <div>
+            <label class="block text-xs font-semibold text-slate-600 mb-1">Tenant Type</label>
+            <select id="tenantType" class="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400">
+              <option value="Single-Tenant">Single-Tenant</option>
+              <option value="Multi-Tenant">Multi-Tenant</option>
+            </select>
+          </div>
+
+          <!-- Redirect URLs -->
+          <div>
+            <div class="flex items-center justify-between mb-1">
+              <label class="block text-xs font-semibold text-slate-600">Redirect URLs</label>
+              <button onclick="addRedirectRow()" class="text-xs text-blue-600 hover:text-blue-800 font-semibold">
+                <i class="fas fa-plus mr-1"></i>Add URL
+              </button>
+            </div>
+            <div id="redirectContainer" class="space-y-2"></div>
+          </div>
+
+          <!-- API Permissions -->
+          <div>
+            <label class="block text-xs font-semibold text-slate-600 mb-1">API Permissions</label>
+            <div class="flex gap-2 mb-2">
+              <input id="apiSearch" type="text" placeholder="e.g. User.Read, Mail.Send ..."
+                list="commonApiList"
+                class="flex-1 border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
+                onkeydown="if(event.key==='Enter'){event.preventDefault();addApiTag();}">
+              <datalist id="commonApiList">
+                <option value="User.Read"><option value="User.ReadWrite"><option value="Mail.Read">
+                <option value="Mail.Send"><option value="Calendars.Read"><option value="Files.Read.All">
+                <option value="Directory.Read.All"><option value="Group.Read.All"><option value="offline_access">
+                <option value="openid"><option value="profile">
+              </datalist>
+              <button onclick="addApiTag()" class="bg-blue-600 text-white text-xs font-semibold px-3 py-2 rounded-lg hover:bg-blue-700 transition">Add</button>
+            </div>
+            <div id="apiTagsContainer" class="flex flex-wrap gap-1.5 min-h-[28px]"></div>
+          </div>
+
+          <!-- Users/Groups Assignment for OIDC -->
+          <div>
+            <label class="block text-xs font-semibold text-slate-600 mb-1">Users Assignment</label>
+            <textarea id="usersAssignmentOidc" rows="2" placeholder="Emails or UPNs (one per line) to assign to enterprise app"
+              class="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 resize-none"></textarea>
+          </div>
+          <div>
+            <label class="block text-xs font-semibold text-slate-600 mb-1">Groups Assignment</label>
+            <textarea id="groupsAssignmentOidc" rows="2" placeholder="Group names or IDs (one per line) to assign to enterprise app"
+              class="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 resize-none"></textarea>
+          </div>
+        </div>
+
+        <!-- Application Owners -->
+        <div class="mt-4">
+          <label class="block text-xs font-semibold text-slate-600 mb-1">Application Owners (one email per line) <span class="text-red-500">*</span></label>
+          <textarea id="owners" rows="3" placeholder="user@company.com&#10;owner2@company.com"
+            class="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 resize-none font-mono"></textarea>
+        </div>
+      </div>
+
+      <!-- Execute Section -->
+      <div class="section-card p-5">
+        <div class="flex items-center gap-2 mb-4">
+          <div class="w-7 h-7 rounded-full bg-blue-600 text-white flex items-center justify-center text-sm font-bold">3</div>
+          <h2 class="font-bold text-slate-700">Execute Application Creation</h2>
+        </div>
+        <div class="flex items-center justify-between mb-3">
+          <p class="text-xs text-slate-500"><i class="fas fa-terminal mr-1"></i>Execution Logs</p>
+          <span id="execStatusBadge" class="text-xs font-semibold text-slate-400">Ready to execute</span>
+        </div>
+        <div id="execLogs" class="log-terminal bg-slate-900 rounded-xl p-4 text-xs text-slate-300 scrollbar-thin">
+          <span class="text-slate-500">ℹ Click "Execute Application Creation" to begin...</span>
+        </div>
+        <!-- Progress Bar -->
+        <div class="mt-3 h-1.5 bg-slate-100 rounded-full overflow-hidden">
+          <div id="progressBar" class="h-full bg-blue-500 rounded-full transition-all duration-500" style="width:0%"></div>
+        </div>
+        <div class="flex justify-between mt-4">
+          <button onclick="clearLogs()" class="text-sm text-slate-400 hover:text-slate-600 transition">
+            <i class="fas fa-trash mr-1 text-xs"></i>Clear
+          </button>
+          <button onclick="executeOnboard()" id="executeBtn"
+            class="flex items-center gap-2 bg-green-600 hover:bg-green-700 disabled:bg-slate-300 disabled:cursor-not-allowed text-white font-semibold px-6 py-2.5 rounded-xl transition-all shadow text-sm">
+            <i class="fas fa-rocket"></i> Execute Application Creation
+          </button>
+        </div>
+      </div>
+
+      <!-- Completion Details (shown after success) -->
+      <div id="completionSection" class="hidden section-card p-5 animate-fade-in">
+        <h3 class="flex items-center gap-2 font-bold text-slate-700 mb-4">
+          <i class="fas fa-check-circle text-green-500 text-lg"></i> Application Created Successfully
+        </h3>
+        <div id="appDetails" class="space-y-2 mb-4"></div>
+        <div id="samlUrls" class="hidden mt-3 p-3 bg-purple-50 border border-purple-200 rounded-xl space-y-2">
+        </div>
+      </div>
+
+      <!-- Email Section (shown after success) -->
+      <div id="emailSection" class="hidden section-card p-5 animate-fade-in">
+        <div class="flex items-center gap-2 mb-4">
+          <div class="w-7 h-7 rounded-full bg-indigo-500 text-white flex items-center justify-center text-sm"><i class="fas fa-envelope"></i></div>
+          <h3 class="font-bold text-slate-700">Notification Email</h3>
+          <span class="text-xs bg-indigo-100 text-indigo-700 font-semibold px-2 py-0.5 rounded-full">Outlook</span>
+        </div>
+        <div class="space-y-3">
+          <div>
+            <label class="block text-xs font-semibold text-slate-500 mb-1">To</label>
+            <input id="emailTo" type="text" class="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400" placeholder="recipient@company.com">
+          </div>
+          <div>
+            <label class="block text-xs font-semibold text-slate-500 mb-1">CC</label>
+            <input id="emailCc" type="text" class="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400" placeholder="cc@company.com; cc2@company.com">
+          </div>
+          <div>
+            <label class="block text-xs font-semibold text-slate-500 mb-1">Subject</label>
+            <input id="emailSubject" type="text" class="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400">
+          </div>
+          <div>
+            <label class="block text-xs font-semibold text-slate-500 mb-1">Body</label>
+            <textarea id="emailBody" rows="8" class="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 resize-none font-mono"></textarea>
+          </div>
+          <button onclick="sendViaOutlook()" class="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold px-5 py-2.5 rounded-xl transition-all shadow text-sm">
+            <i class="fas fa-paper-plane"></i> Send via Outlook
+          </button>
+        </div>
+      </div>
+
+    </div><!-- end right col -->
+  </div><!-- end splitPanel -->
+</div><!-- end animate-fade-in -->
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+// ──────────────────────────────────────────────
+// State
+// ──────────────────────────────────────────────
+let currentFormData = null;
+let selectedAppType = '';
+let executionInterval = null;
+let executionResult = null;
+let apiPermissions = [];
+let redirectRows = [];
+
+// ──────────────────────────────────────────────
+// Fetch RITM
+// ──────────────────────────────────────────────
+async function fetchRITM() {
+  const ritmNum = document.getElementById('ritmInput').value.trim().toUpperCase();
+  if (!ritmNum) { showFetchError('Please enter a RITM number'); return; }
+
+  const btn = document.getElementById('fetchBtn');
+  btn.disabled = true;
+  btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Fetching...';
+  document.getElementById('fetchError').classList.add('hidden');
+
+  // Reset UI so stale data is cleared immediately
+  currentFormData = null;
+  document.getElementById('splitPanel').style.display = 'none';
+  document.getElementById('notesSection').classList.add('hidden');
+  document.getElementById('completionSection').classList.add('hidden');
+  document.getElementById('emailSection').classList.add('hidden');
+
+  try {
+    const resp = await fetch('/fetch_ritm', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ritm_number: ritmNum})
+    });
+    const data = await resp.json();
+    if (!data.success) { showFetchError(data.error || 'Failed to fetch RITM'); return; }
+
+    currentFormData = data.form_data;
+    populateUI(currentFormData);
+    document.getElementById('splitPanel').style.display = 'grid';
+    document.getElementById('notesSection').classList.remove('hidden');
+    document.getElementById('splitPanel').scrollIntoView({behavior:'smooth', block:'start'});
+  } catch(e) {
+    showFetchError('Network error: ' + e.message);
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = '<i class="fas fa-search mr-2"></i>Fetch RITM Data';
+  }
+}
+
+function showFetchError(msg) {
+  document.getElementById('fetchError').classList.remove('hidden');
+  document.getElementById('fetchErrorMsg').textContent = msg;
+}
+
+// ──────────────────────────────────────────────
+// Populate UI from form_data
+// ──────────────────────────────────────────────
+function populateUI(fd) {
+  // ── Full reset: clear everything before filling new RITM data ──────────
+  // Clear left-panel text fields
+  ['ritmState','ritmCatalog','ritmPriority','ritmOpened',
+   'sv_risk_assessment','sv_app_name','sv_environment','sv_app_type','sv_auth_method','sv_admin_consent',
+   'sv_users_assigned','sv_users_list','sv_saml_entity_id','sv_saml_acs_url','sv_saml_attributes','sv_metadata_xml',
+   'sv_api_req','sv_api_details','sv_expose_apis','sv_expose_details','sv_redir_req','sv_redirect_uris','sv_tenant_scope','sv_cert_secret',
+   'sv_purpose','sv_additional_info','sv_contact_mode','sv_location'
+  ].forEach(id => setText(id, '—'));
+
+  document.getElementById('ritmLink').textContent = '';
+  document.getElementById('ritmLink').href = '#';
+  document.getElementById('peopleCards').innerHTML = '';
+  document.getElementById('otherVarsContainer').innerHTML = '<p class="text-xs text-slate-400 italic">No additional variables</p>';
+  document.getElementById('notesList').innerHTML = '';
+
+  // Hide SAML/OIDC left-panel sections
+  document.getElementById('samlSection').classList.add('hidden');
+  document.getElementById('oidcSection').classList.add('hidden');
+
+  // Clear right-side form fields
+  document.getElementById('appName').value = '';
+  document.getElementById('owners').value = '';
+
+  // Clear SAML form fields
+  document.getElementById('samlEntityId').value = '';
+  document.getElementById('samlAcsUrl').value = '';
+  document.getElementById('usersAssignment').value = '';
+  document.getElementById('groupsAssignment').value = '';
+
+  // Clear OIDC form fields
+  document.getElementById('tenantType').value = 'Single-Tenant';
+  document.getElementById('redirectContainer').innerHTML = '';
+  redirectRows = [];
+  apiPermissions = [];
+  document.getElementById('apiTagsContainer').innerHTML = '';
+  document.getElementById('usersAssignmentOidc').value = '';
+  document.getElementById('groupsAssignmentOidc').value = '';
+
+  // Reset execution area
+  clearLogs();
+  document.getElementById('progressBar').style.width = '0%';
+  document.getElementById('execStatusBadge').textContent = 'Ready to execute';
+  document.getElementById('execStatusBadge').className = 'text-xs font-semibold text-slate-400';
+  document.getElementById('completionSection').classList.add('hidden');
+  document.getElementById('emailSection').classList.add('hidden');
+  document.getElementById('samlUrls').classList.add('hidden');
+  document.getElementById('samlUrls').innerHTML = '';
+  document.getElementById('appDetails').innerHTML = '';
+  // ── End reset ────────────────────────────────────────────────────────────
+
+  // RITM header
+  const link = document.getElementById('ritmLink');
+  link.textContent = fd.ritm_number || '—';
+  link.href = fd.ritm_url || '#';
+  setText('ritmState', fd.ritm_state || '—');
+  setText('ritmCatalog', fd.catalog_item || '—');
+  setText('ritmPriority', fd.ritm_priority || '—');
+  setText('ritmOpened', fd.ritm_opened || '—');
+
+  // App details
+  setText('sv_risk_assessment', fd.risk_assessment || '—');
+  setText('sv_app_name', fd.app_name || '—');
+  setText('sv_environment', fd.environment || '—');
+  setText('sv_app_type', fd.app_type_raw || '—');
+  setText('sv_auth_method', fd.auth_method || '—');
+  setText('sv_admin_consent', fd.admin_consent || '—');
+
+  // People
+  const people = fd.people || {};
+  const peopleFields = [
+    {key:'requested_for', label:'Requested For'},
+    {key:'requested_by', label:'Requested By'},
+    {key:'technical_owner', label:'Technical Owner'},
+    {key:'business_owner', label:'Business Owner'},
+  ];
+  const pc = document.getElementById('peopleCards');
+  pc.innerHTML = '';
+  peopleFields.forEach(({key, label}) => {
+    const p = people[key] || {};
+    const name = p.name || fd[key+'_name'] || '—';
+    const email = p.email || fd[key+'_email'] || '';
+    const emailHtml = email ? `<span class="text-blue-600 font-mono text-xs">(${email})</span>` : '';
+    pc.innerHTML += `<div class="person-card"><span class="font-semibold text-slate-600 text-xs">${label}:</span> <span class="text-slate-800 text-xs">${name}</span> ${emailHtml}</div>`;
+  });
+
+  // SAML / OIDC conditional sections
+  if (fd.suggested_app_type === 'SAML') {
+    document.getElementById('samlSection').classList.remove('hidden');
+    document.getElementById('oidcSection').classList.add('hidden');
+    setText('sv_users_assigned', fd.users_assigned || '—');
+    setText('sv_users_list', fd.users_assigned_list || '—');
+    setText('sv_saml_entity_id', fd.saml_entity_id || '—');
+    setText('sv_saml_acs_url', fd.saml_acs_url || '—');
+    setText('sv_saml_attributes', fd.saml_attributes || '—');
+    setText('sv_metadata_xml', fd.metadata_xml_available || '—');
+  } else {
+    document.getElementById('oidcSection').classList.remove('hidden');
+    document.getElementById('samlSection').classList.add('hidden');
+    setText('sv_api_req', fd.api_permissions_required || '—');
+    setText('sv_api_details', fd.api_permissions_details || '—');
+    setText('sv_expose_apis', fd.expose_apis || '—');
+    setText('sv_expose_details', fd.expose_apis_details || '—');
+    setText('sv_redir_req', fd.redirect_uris_required || '—');
+    setText('sv_redirect_uris', fd.redirect_urls || '—');
+    setText('sv_tenant_scope', fd.tenant_scope || '—');
+    setText('sv_cert_secret', fd.cert_secret_required || '—');
+  }
+
+  // Additional notes
+  setText('sv_purpose', fd.purpose || '—');
+  setText('sv_additional_info', fd.additional_info || '—');
+  setText('sv_contact_mode', fd.contact_mode || '—');
+  setText('sv_location', fd.location || '—');
+
+  // Other variables
+  const knownKeys = new Set(['risk_assessment','app_name','environment','app_type','auth_method',
+    'admin_consent','users_assigned','users_assigned_list','saml_entity_id','saml_acs_url',
+    'saml_attributes','metadata_xml_available','api_permissions_required','api_permissions_details',
+    'expose_apis','expose_apis_details','redirect_uris_required','redirect_uris_list','tenant_scope',
+    'cert_secret_required','purpose','additional_info','contact_mode','location',
+    'requested_for','requested_by','business_owner','technical_owner']);
+  const sv = fd.snow_variables || {};
+  const otherKeys = Object.keys(sv).filter(k => !knownKeys.has(k) && sv[k]);
+  const ovc = document.getElementById('otherVarsContainer');
+  if (otherKeys.length > 0) {
+    ovc.innerHTML = otherKeys.map(k =>
+      `<div class="detail-row"><span class="detail-label">${k.replace(/_/g,' ')}</span><span class="detail-value">${sv[k]}</span></div>`
+    ).join('');
+  } else {
+    ovc.innerHTML = '<p class="text-xs text-slate-400 italic">No additional variables</p>';
+  }
+
+  // Validation notes
+  const notes = fd.notes || [];
+  const notesList = document.getElementById('notesList');
+  notesList.innerHTML = notes.map(n => {
+    const icons = {success:'fa-check-circle',warning:'fa-exclamation-triangle',error:'fa-times-circle',info:'fa-info-circle'};
+    return `<div class="note-badge note-${n.type}"><i class="fas ${icons[n.type]||'fa-info-circle'}"></i>${n.message}</div>`;
+  }).join('');
+
+  // Pre-fill right form
+  setAppType(fd.suggested_app_type || 'OIDC');
+  document.getElementById('appName').value = fd.processed_app_name || fd.app_name || '';
+  document.getElementById('owners').value = fd.owners || '';
+
+  if (fd.suggested_app_type === 'SAML') {
+    document.getElementById('samlEntityId').value = fd.saml_entity_id || '';
+    document.getElementById('samlAcsUrl').value = fd.saml_acs_url || '';
+    document.getElementById('usersAssignment').value = fd.users_assigned_list || '';
+  } else {
+    document.getElementById('tenantType').value = fd.suggested_tenant || 'Single-Tenant';
+    // Add redirect rows from RITM
+    document.getElementById('redirectContainer').innerHTML = '';
+    redirectRows = [];
+    if (fd.redirect_urls) {
+      fd.redirect_urls.split('\n').filter(Boolean).forEach(u => addRedirectRow(u));
+    }
+    // API permissions
+    apiPermissions = [];
+    document.getElementById('apiTagsContainer').innerHTML = '';
+    if (fd.api_permissions_details) {
+      fd.api_permissions_details.split(/[,;\n]/).filter(Boolean).forEach(p => addApiTag(p.trim()));
+    }
+  }
+}
+
+
+function setText(id, val) {
+  const el = document.getElementById(id);
+  if (el) el.textContent = val || '—';
+}
+
+// ──────────────────────────────────────────────
+// App Type
+// ──────────────────────────────────────────────
+function setAppType(type) {
+  selectedAppType = type;
+  document.getElementById('selectedAppType').value = type;
+
+  const samlCard = document.getElementById('samlCard');
+  const oidcCard = document.getElementById('oidcCard');
+  const samlFields = document.getElementById('samlFields');
+  const oidcFields = document.getElementById('oidcFields');
+
+  if (type === 'SAML') {
+    samlCard.classList.add('border-purple-500','bg-purple-50');
+    samlCard.classList.remove('border-slate-200');
+    oidcCard.classList.remove('border-blue-500','bg-blue-50');
+    oidcCard.classList.add('border-slate-200');
+    samlFields.classList.remove('hidden');
+    oidcFields.classList.add('hidden');
+  } else {
+    oidcCard.classList.add('border-blue-500','bg-blue-50');
+    oidcCard.classList.remove('border-slate-200');
+    samlCard.classList.remove('border-purple-500','bg-purple-50');
+    samlCard.classList.add('border-slate-200');
+    oidcFields.classList.remove('hidden');
+    samlFields.classList.add('hidden');
+    if (redirectRows.length === 0) addRedirectRow();
+  }
+}
+
+function toggleGalleryName() {
+  const isGallery = document.getElementById('galleryAppToggle').checked;
+  document.getElementById('galleryNameField').classList.toggle('hidden', !isGallery);
+}
+
+// ──────────────────────────────────────────────
+// Redirect URLs
+// ──────────────────────────────────────────────
+function addRedirectRow(url = '') {
+  const id = 'rr_' + Date.now();
+  redirectRows.push(id);
+  const html = `<div class="redirect-row" id="${id}">
+    <select class="border border-slate-200 rounded-lg px-2 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-blue-400 bg-white">
+      <option value="Web">Web</option>
+      <option value="SPA">SPA</option>
+      <option value="Native">Native/Mobile</option>
+    </select>
+    <input type="text" value="${url}" placeholder="https://app.example.com/callback"
+      class="flex-1 border border-slate-200 rounded-lg px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-blue-400">
+    <button onclick="removeRedirectRow('${id}')" class="w-8 h-8 rounded-lg bg-red-50 hover:bg-red-100 text-red-400 hover:text-red-600 flex items-center justify-center flex-shrink-0 transition">
+      <i class="fas fa-times text-xs"></i>
+    </button>
+  </div>`;
+  document.getElementById('redirectContainer').insertAdjacentHTML('beforeend', html);
+}
+
+function removeRedirectRow(id) {
+  document.getElementById(id)?.remove();
+  redirectRows = redirectRows.filter(r => r !== id);
+}
+
+// ──────────────────────────────────────────────
+// API Permissions Tags
+// ──────────────────────────────────────────────
+function addApiTag(val) {
+  val = val || document.getElementById('apiSearch').value.trim();
+  if (!val) return;
+  if (apiPermissions.includes(val)) { document.getElementById('apiSearch').value = ''; return; }
+  apiPermissions.push(val);
+  const tag = document.createElement('div');
+  tag.className = 'api-tag';
+  tag.id = 'api_' + val.replace(/\./g,'_');
+  tag.innerHTML = `${val} <button onclick="removeApiTag('${val}')" class="ml-1 text-blue-300 hover:text-blue-700"><i class="fas fa-times text-xs"></i></button>`;
+  document.getElementById('apiTagsContainer').appendChild(tag);
+  document.getElementById('apiSearch').value = '';
+}
+
+function removeApiTag(val) {
+  apiPermissions = apiPermissions.filter(a => a !== val);
+  document.getElementById('api_' + val.replace(/\./g,'_'))?.remove();
+}
+
+// ──────────────────────────────────────────────
+// Execute
+// ──────────────────────────────────────────────
+async function executeOnboard() {
+  const appName = document.getElementById('appName').value.trim();
+  const ownersRaw = document.getElementById('owners').value.trim();
+
+  if (!selectedAppType) { alert('Please select an Application Type (SAML or OIDC)'); return; }
+  if (!appName) { alert('Application Name is required'); return; }
+  if (!ownersRaw) { alert('At least one owner email is required'); return; }
+
+  const owners = ownersRaw.split('\n').map(o => o.trim()).filter(Boolean);
+
+  let formData = { app_type: selectedAppType, app_name: appName, owners };
+  formData.mode = 'ritm';
+  if (currentFormData) {
+    formData.ritm_number = currentFormData.ritm_number;
+    formData.risk_assessment = currentFormData.risk_assessment;
+  }
+
+  if (selectedAppType === 'SAML') {
+    const isGallery = document.getElementById('galleryAppToggle').checked;
+    formData.gallery_app = isGallery;
+    if (isGallery) {
+      formData.gallery_name = document.getElementById('galleryName').value.trim();
+    }
+    formData.saml_entity_id = document.getElementById('samlEntityId').value.trim();
+    formData.saml_acs_url   = document.getElementById('samlAcsUrl').value.trim();
+    formData.users_assignment  = document.getElementById('usersAssignment').value.trim();
+    formData.groups_assignment = document.getElementById('groupsAssignment').value.trim();
+  } else {
+    formData.tenant = document.getElementById('tenantType').value;
+    // Collect redirect URLs with types
+    const rows = document.getElementById('redirectContainer').querySelectorAll('.redirect-row');
+    const redirectUrls = [];
+    rows.forEach(row => {
+      const type = row.querySelector('select').value;
+      const url = row.querySelector('input').value.trim();
+      if (url) redirectUrls.push({type, url});
+    });
+    formData.redirect_urls = redirectUrls.map(r => r.url);
+    formData.redirect_urls_typed = redirectUrls;
+    formData.api_permissions = apiPermissions;
+    formData.users_assignment = document.getElementById('usersAssignmentOidc').value.trim();
+    formData.groups_assignment = document.getElementById('groupsAssignmentOidc').value.trim();
+  }
+
+  document.getElementById('executeBtn').disabled = true;
+  document.getElementById('executeBtn').innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Executing...';
+  clearLogs();
+  appendLog('🚀 Starting execution...', 'info');
+  document.getElementById('execStatusBadge').textContent = 'Running...';
+  document.getElementById('execStatusBadge').className = 'text-xs font-semibold text-blue-500 animate-pulse';
+
+  try {
+    const resp = await fetch('/onboard/submit', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify(formData)
+    });
+    const data = await resp.json();
+    if (!data.success) { appendLog('❌ ' + (data.error || 'Submit failed'), 'error'); return; }
+
+    const execId = data.execution_id;
+    executionInterval = setInterval(() => pollStatus(execId), 1500);
+  } catch(e) {
+    appendLog('❌ Network error: ' + e.message, 'error');
+    resetExecBtn();
+  }
+}
+
+async function pollStatus(execId) {
+  try {
+    const resp = await fetch('/execution_status/' + execId);
+    const data = await resp.json();
+
+    // Render new logs
+    if (data.logs) {
+      const logsEl = document.getElementById('execLogs');
+      logsEl.innerHTML = '';
+      data.logs.forEach(l => appendLog(l.message, l.type));
+    }
+
+    // Progress bar
+    if (data.progress !== undefined) {
+      document.getElementById('progressBar').style.width = data.progress + '%';
+    }
+
+    if (data.status === 'completed' || data.status === 'error') {
+      clearInterval(executionInterval);
+      executionInterval = null;
+      executionResult = data.result;
+
+      if (data.status === 'completed') {
+        document.getElementById('execStatusBadge').textContent = '✅ Completed';
+        document.getElementById('execStatusBadge').className = 'text-xs font-semibold text-green-600';
+        showCompletionSection(data.result);
+        saveToHistory(formData_last, data);
+      } else {
+        document.getElementById('execStatusBadge').textContent = '❌ Failed';
+        document.getElementById('execStatusBadge').className = 'text-xs font-semibold text-red-600';
+      }
+      resetExecBtn();
+    }
+  } catch(e) { console.error('Poll error:', e); }
+}
+
+let formData_last = {};
+const _origExec = executeOnboard;
+window.executeOnboard = async function() {
+  const appName = document.getElementById('appName').value.trim();
+  const ownersRaw = document.getElementById('owners').value.trim();
+  formData_last = {
+    ...(currentFormData || {}),
+    app_name: appName,
+    owners: ownersRaw,
+    mode: 'ritm',
+    ritm_number: currentFormData?.ritm_number,
+    app_type: selectedAppType
+  };
+  await _origExec();
+};
+
+// ──────────────────────────────────────────────
+// Completion + Email
+// ──────────────────────────────────────────────
+function showCompletionSection(result) {
+  document.getElementById('completionSection').classList.remove('hidden');
+  document.getElementById('emailSection').classList.remove('hidden');
+
+  const appDetails = document.getElementById('appDetails');
+  appDetails.innerHTML = '';
+
+  if (!result) return;
+
+  const addDetail = (label, val) => {
+    if (!val) return;
+    appDetails.innerHTML += `<div class="detail-row">
+      <span class="detail-label">${label}</span>
+      <span class="detail-value font-mono text-xs">${val}</span>
+    </div>`;
+  };
+
+  const addLink = (label, url, text) => {
+    if (!url) return;
+    appDetails.innerHTML += `<div class="detail-row">
+      <span class="detail-label">${label}</span>
+      <a href="${url}" target="_blank" class="detail-value text-blue-600 underline text-xs flex items-center gap-1">
+        <i class="fas fa-external-link-alt text-xs"></i> ${text}
+      </a>
+    </div>`;
+  };
+
+  const addList = (label, items) => {
+    if (!items || !items.length) return;
+    appDetails.innerHTML += `<div class="detail-row">
+      <span class="detail-label">${label}</span>
+      <span class="detail-value text-xs">${items.join(', ')}</span>
+    </div>`;
+  };
+
+  // Hide samlUrls box by default
+  const samlUrlsDiv = document.getElementById('samlUrls');
+  if (samlUrlsDiv) samlUrlsDiv.classList.add('hidden');
+
+  if (result.app_registration) {
+    // ── OIDC: App Registration ──────────────────────────────────
+    const ar = result.app_registration;
+    addDetail('Application (Client) ID', ar.client_id);
+    addDetail('Object ID', ar.id);
+    addDetail('Display Name', ar.display_name || ar.name || document.getElementById('appName').value);
+    addDetail('Tenant Type', ar.tenant_type || ar.signin_audience || '');
+    addList('Owners', ar.owners_added);
+    addList('Assigned Users', result.assigned_users);
+    addList('Assigned Groups', result.assigned_groups);
+    if (ar.redirect_urls && ar.redirect_urls.length) {
+      addList('Redirect URLs', ar.redirect_urls);
+    }
+    addList('API Permissions', ar.api_permissions_added);
+    addLink('App Registration', result.app_reg_portal_url, 'Open in Entra Portal');
+    if (result.service_principal) {
+      addLink('Enterprise Application', result.sp_portal_url, 'Open in Entra Portal');
+    }
+  } else if (result.service_principal) {
+    // ── SAML: Enterprise Application ────────────────────────────
+    const sp = result.service_principal;
+    addDetail('App (Client) ID', sp.app_id);
+    addDetail('SP Object ID', sp.id);
+    addDetail('Display Name', sp.display_name || document.getElementById('appName').value);
+    addList('Owners', sp.owners_added);
+    addList('Assigned Users', sp.assigned_users);
+    addList('Assigned Groups', sp.assigned_groups);
+    if (sp.entity_id) addDetail('Entity ID', sp.entity_id);
+    if (sp.acs_url)   addDetail('ACS URL', sp.acs_url);
+    if (result.federated_metadata_url) addLink('Federation Metadata XML', result.federated_metadata_url, 'Download XML');
+    addLink('Enterprise Application', result.sp_portal_url, 'Open in Entra Portal');
+  }
+
+
+  // Build email draft
+  const appName = document.getElementById('appName').value;
+  const fd = currentFormData || {};
+  const rfEmail = fd.requested_for_email || '';
+  const rbEmail = fd.requested_by_email || '';
+  const toEmails = [...new Set([rfEmail, rbEmail].filter(Boolean))].join('; ');
+  const boEmail = fd.business_owner_email || '';
+  const toEmail = fd.technical_owner_email || '';
+  const ccEmails = [...new Set([boEmail, toEmail].filter(Boolean))].join('; ');
+
+  document.getElementById('emailTo').value = toEmails;
+  document.getElementById('emailCc').value = ccEmails;
+  document.getElementById('emailSubject').value = `Azure Entra ID Application Onboarding Complete — ${appName}`;
+
+  let clientInfo = '';
+  if (result?.app_registration) clientInfo += `\n• Client ID: ${result.app_registration.client_id}`;
+  if (result?.service_principal) clientInfo += `\n• App ID: ${result.service_principal.app_id}`;
+  if (result?.federated_metadata_url) clientInfo += `\n• Federation Metadata URL: ${result.federated_metadata_url}`;
+
+  document.getElementById('emailBody').value =
+`Hi ${fd.requested_for_name || 'Team'},
+
+Your Azure Entra ID application has been successfully onboarded.
+
+Application Details:
+• Name: ${appName}
+• Type: ${selectedAppType === 'SAML' ? 'Enterprise Application (SAML)' : 'App Registration (OIDC)'}
+• RITM: ${fd.ritm_number || 'N/A'}
+• Risk Assessment: ${fd.risk_assessment || 'N/A'}${clientInfo}
+
+Please reach out if you have any questions.
+
+Regards,
+IAM Team`;
+}
+
+function sendViaOutlook() {
+  const to = encodeURIComponent(document.getElementById('emailTo').value);
+  const cc = encodeURIComponent(document.getElementById('emailCc').value);
+  const subject = encodeURIComponent(document.getElementById('emailSubject').value);
+  const body = encodeURIComponent(document.getElementById('emailBody').value);
+  window.location.href = `mailto:${to}?cc=${cc}&subject=${subject}&body=${body}`;
+}
+
+// ──────────────────────────────────────────────
+// Logs
+// ──────────────────────────────────────────────
+function appendLog(msg, type) {
+  const el = document.getElementById('execLogs');
+  const colors = { success:'text-green-400', error:'text-red-400', warning:'text-yellow-400', info:'text-slate-300' };
+  const color = colors[type] || 'text-slate-300';
+  const now = new Date().toLocaleTimeString('en-US',{hour12:false});
+  const div = document.createElement('div');
+  div.className = color + ' py-0.5';
+  div.textContent = `[${now}] ${msg}`;
+  if (el.querySelector('.text-slate-500')) el.innerHTML = '';
+  el.appendChild(div);
+  el.scrollTop = el.scrollHeight;
+}
+
+function clearLogs() {
+  document.getElementById('execLogs').innerHTML = '<span class="text-slate-500">ℹ Logs cleared.</span>';
+  document.getElementById('progressBar').style.width = '0%';
+}
+
+function resetExecBtn() {
+  const btn = document.getElementById('executeBtn');
+  btn.disabled = false;
+  btn.innerHTML = '<i class="fas fa-rocket mr-2"></i>Execute Application Creation';
+}
+
+// ──────────────────────────────────────────────
+// History (localStorage)
+// ──────────────────────────────────────────────
+function saveToHistory(fd, execData) {
+  const history = JSON.parse(localStorage.getItem('onboarding_history') || '[]');
+  const logs = execData.logs || [];
+  const result = execData.result || {};
+  const sp = result.service_principal || {};
+  const ar = result.app_registration || {};
+
+  // Capture redirect URLs from form
+  const redirectRowEls = document.getElementById('redirectContainer')?.querySelectorAll('.redirect-row') || [];
+  const formRedirectUrls = [...redirectRowEls].map(r => r.querySelector('input')?.value).filter(Boolean);
+
+  history.unshift({
+    id: Date.now().toString(),
+    timestamp: new Date().toISOString(),
+    method: 'RITM',
+    ritm_number: fd?.ritm_number || '',
+    app_name: document.getElementById('appName').value,
+    app_type: selectedAppType,
+    status: execData.status,
+    owners: document.getElementById('owners').value.split('\n').filter(Boolean),
+
+    // Full RITM ticket data from ServiceNow
+    ritm_data: fd || {},
+
+    // Complete onboarding form state at time of execution
+    form: {
+      entity_id:    document.getElementById('samlEntityId')?.value || '',
+      acs_url:      document.getElementById('samlAcsUrl')?.value   || '',
+      gallery:      document.getElementById('galleryAppToggle')?.checked || false,
+      gallery_name: document.getElementById('galleryName')?.value  || '',
+      saml_users:   (document.getElementById('usersAssignment')?.value  || '').split('\n').filter(Boolean),
+      saml_groups:  (document.getElementById('groupsAssignment')?.value || '').split('\n').filter(Boolean),
+      tenant:       document.getElementById('tenantType')?.value   || '',
+      oidc_users:   (document.getElementById('usersAssignmentOidc')?.value  || '').split('\n').filter(Boolean),
+      oidc_groups:  (document.getElementById('groupsAssignmentOidc')?.value || '').split('\n').filter(Boolean),
+      redirect_urls: formRedirectUrls,
+      api_permissions: [...apiPermissions]
+    },
+
+    // Flattened result fields
+    entity_id: sp.entity_id || '',
+    acs_url: sp.acs_url || '',
+    federated_metadata_url: result.federated_metadata_url || '',
+    saml_users:  sp.assigned_users || [],
+    saml_groups: sp.assigned_groups || [],
+    sp_object_id: sp.id || '',
+    sp_app_id:    sp.app_id || '',
+    sp_portal_url: result.sp_portal_url || '',
+    client_id:  ar.client_id || '',
+    app_obj_id: ar.id || '',
+    tenant_type: ar.tenant_type || ar.signin_audience || '',
+    redirect_urls: ar.redirect_urls || [],
+    api_permissions: ar.api_permissions_added || [],
+    oidc_users:  result.assigned_users || [],
+    oidc_groups: result.assigned_groups || [],
+    app_reg_portal_url:  result.app_reg_portal_url || '',
+    oidc_sp_portal_url:  result.sp_portal_url || '',
+
+    logs: logs.slice(-100),
+    result: result
+  });
+  localStorage.setItem('onboarding_history', JSON.stringify(history.slice(0, 100)));
+}
+
+// Initial state
+document.getElementById('ritmInput').focus();
+</script>
+{% endblock %}

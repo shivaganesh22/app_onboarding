@@ -1,0 +1,297 @@
+{% extends "base.html" %}
+
+{% block title %}Executing Configuration - Azure AD App Onboarding{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+    <!-- Progress Bar -->
+    <div class="bg-white rounded-lg shadow p-6">
+        <div class="flex items-center justify-between mb-4">
+            <h2 class="text-lg font-semibold text-gray-900">
+                <i class="fas fa-cogs mr-2"></i>Executing Configuration - Row {{ current_index }} of {{ total_rows }}
+            </h2>
+            <span class="text-sm text-gray-500">{{ ((current_index / total_rows) * 100) | round(1) }}% Complete</span>
+        </div>
+        <div class="w-full bg-gray-200 rounded-full h-2">
+            <div class="bg-azure-blue h-2 rounded-full transition-all duration-300" style="width: {{ (current_index / total_rows) * 100 }}%"></div>
+        </div>
+    </div>
+
+    <!-- Configuration Summary -->
+    <div class="bg-white rounded-lg shadow p-6">
+        <h3 class="text-lg font-semibold text-gray-900 mb-4">
+            <i class="fas fa-rocket mr-2"></i>Executing: {{ form_data.app_name }}
+        </h3>
+        
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+            <div class="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                <div class="flex items-center">
+                    <i class="fas fa-{% if form_data.app_type == 'SAML' %}shield-alt{% else %}key{% endif %} text-blue-600 mr-2"></i>
+                    <span class="font-medium text-blue-800">{{ form_data.app_type }} Application</span>
+                </div>
+            </div>
+            
+            {% if form_data.app_type == 'SAML' and form_data.gallery_app %}
+            <div class="bg-green-50 border border-green-200 rounded-lg p-4">
+                <div class="flex items-center">
+                    <i class="fas fa-store text-green-600 mr-2"></i>
+                    <span class="font-medium text-green-800">Gallery Application</span>
+                </div>
+            </div>
+            {% endif %}
+            
+            <div class="bg-purple-50 border border-purple-200 rounded-lg p-4">
+                <div class="flex items-center">
+                    <i class="fas fa-users text-purple-600 mr-2"></i>
+                    <span class="font-medium text-purple-800">{{ form_data.owners | length }} Owner(s)</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Execution Progress -->
+    <div class="bg-white rounded-lg shadow p-6">
+        <h3 class="text-lg font-semibold text-gray-900 mb-4">
+            <i class="fas fa-tasks mr-2"></i>Execution Progress
+        </h3>
+        
+        <div class="mb-4">
+            <div class="flex items-center justify-between mb-2">
+                <span id="current-step" class="text-sm text-gray-600">Ready to start...</span>
+                <span id="progress-percent" class="text-sm text-gray-500">0%</span>
+            </div>
+            <div class="w-full bg-gray-200 rounded-full h-3">
+                <div id="progress-bar" class="bg-azure-blue h-3 rounded-full transition-all duration-500" style="width: 0%"></div>
+            </div>
+        </div> <!-- Start Button -->
+        <div id="start-section" class="text-center">
+            <button id="start-btn" onclick="startExecution()" class="inline-flex items-center px-6 py-3 border border-transparent text-base font-medium rounded-md shadow-sm text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500">
+                <i class="fas fa-play mr-2"></i>Start Execution
+            </button>
+        </div>
+    </div>
+
+    <!-- Real-time Execution Logs -->
+    <div class="bg-white rounded-lg shadow p-6">
+        <h3 class="text-lg font-semibold text-gray-900 mb-4">
+            <i class="fas fa-terminal mr-2"></i>Execution Logs
+        </h3>
+        
+        <div id="execution-logs" class="bg-gray-900 text-green-400 p-4 rounded-md font-mono text-sm min-h-64 max-h-96 overflow-y-auto">
+            <div class="text-gray-500">
+                <i class="fas fa-info-circle mr-2"></i>Click "Start Execution" to begin...
+            </div>
+        </div>
+
+        <!-- Status and Actions -->
+        <div id="status-section" class="mt-4 flex items-center justify-between">
+            <div class="flex items-center">
+                <div id="status-spinner" class="hidden animate-spin rounded-full h-4 w-4 border-b-2 border-azure-blue mr-2"></div>
+                <span id="status-text" class="text-sm text-gray-600">Ready to execute</span>
+            </div>
+            
+            <div id="completion-actions" class="hidden">
+                <button onclick="continueToNext()" class="inline-flex items-center px-4 py-2 bg-azure-blue text-white rounded-md hover:bg-azure-dark transition-colors">
+                    <i class="fas fa-arrow-right mr-2"></i>Continue to Next Row
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    const executionId = '{{ execution_id }}';
+    let pollInterval;
+    let executionStarted = false;
+    let executionComplete = false;
+
+    function startExecution() {
+        if (executionStarted) return;
+        
+        executionStarted = true;
+        const startBtn = document.getElementById('start-btn');
+        const startSection = document.getElementById('start-section');
+        const statusSpinner = document.getElementById('status-spinner');
+        const statusText = document.getElementById('status-text');
+        const logsContainer = document.getElementById('execution-logs');
+        
+        // Hide start button
+        startSection.style.display = 'none';
+        
+        // Show spinner and update status
+        statusSpinner.classList.remove('hidden');
+        statusText.textContent = 'Starting execution...';
+        
+        // Clear logs
+        logsContainer.innerHTML = '<div class="text-blue-400"><i class="fas fa-rocket mr-2"></i>Starting execution...</div>';
+        
+        // Start the execution
+        fetch(`/start_execution/${executionId}`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                console.log('Execution started successfully');
+            } else {
+                console.error('Execution failed:', data.error);
+                handleExecutionError(data.error);
+            }
+        })
+        .catch(error => {
+            console.error('Error starting execution:', error);
+            handleExecutionError('Failed to start execution');
+        });
+        
+        // Start polling for status updates
+        pollInterval = setInterval(pollExecutionStatus, 1000);
+    }
+
+    function pollExecutionStatus() {
+        fetch(`/execution_status/${executionId}`)
+            .then(response => response.json())
+            .then(data => {
+                if (data.error) {
+                    clearInterval(pollInterval);
+                    handleExecutionError(data.error);
+                    return;
+                }
+                
+                updateProgress(data.current_step, data.progress);
+                updateLogs(data.logs);
+                
+                if (data.status === 'completed') {
+                    clearInterval(pollInterval);
+                    handleExecutionComplete(true, data.result);
+                } else if (data.status === 'error') {
+                    clearInterval(pollInterval);
+                    handleExecutionComplete(false, data.error);
+                }
+            })
+            .catch(error => {
+                console.error('Error polling status:', error);
+                // Don't stop polling on network errors, just log them
+            });
+    }
+
+    function updateProgress(step, progress) {
+        const currentStep = document.getElementById('current-step');
+        const progressBar = document.getElementById('progress-bar');
+        const progressPercent = document.getElementById('progress-percent');
+        
+        currentStep.textContent = step;
+        progressBar.style.width = progress + '%';
+        progressPercent.textContent = progress + '%';
+    }
+
+    function updateLogs(logs) {
+        const logsContainer = document.getElementById('execution-logs');
+        
+        // Clear existing logs
+        logsContainer.innerHTML = '';
+        
+        // Add all logs
+        logs.forEach(log => {
+            const logDiv = document.createElement('div');
+            logDiv.className = 'mb-1';
+            
+            let textColor = 'text-green-400';
+            switch(log.type) {
+                case 'error':
+                    textColor = 'text-red-400';
+                    break;
+                case 'success':
+                    textColor = 'text-green-400';
+                    break;
+                case 'info':
+                    textColor = 'text-blue-400';
+                    break;
+                default:
+                    textColor = 'text-gray-400';
+            }
+            
+            logDiv.innerHTML = `
+                <span class="text-gray-500">[${log.timestamp}]</span>
+                <span class="${textColor}">${log.message}</span>
+            `;
+            
+            logsContainer.appendChild(logDiv);
+        });
+        
+        // Scroll to bottom
+        logsContainer.scrollTop = logsContainer.scrollHeight;
+    }
+
+    function handleExecutionComplete(success, result) {
+        executionComplete = true;
+        const statusSpinner = document.getElementById('status-spinner');
+        const statusText = document.getElementById('status-text');
+        const completionActions = document.getElementById('completion-actions');
+        
+        // Hide spinner
+        statusSpinner.classList.add('hidden');
+        
+        // Update status
+        statusText.textContent = success ? 'Execution completed successfully!' : 'Execution failed';
+        statusText.className = success ? 'text-sm text-green-600' : 'text-sm text-red-600';
+        
+        // Show completion actions
+        completionActions.classList.remove('hidden');
+        
+        // Update progress to 100%
+        updateProgress(success ? 'Completed successfully!' : 'Failed', 100);
+        
+        // Add final status to logs
+        const logsContainer = document.getElementById('execution-logs');
+        const finalDiv = document.createElement('div');
+        finalDiv.className = 'mt-2 p-2 rounded ' + (success ? 'bg-green-800' : 'bg-red-800');
+        finalDiv.innerHTML = `
+            <i class="fas fa-${success ? 'check-circle' : 'exclamation-triangle'} mr-2"></i>
+            <span class="${success ? 'text-green-200' : 'text-red-200'}">
+                ${success ? 'Application created successfully!' : 'Application creation failed: ' + result}
+            </span>
+        `;
+        logsContainer.appendChild(finalDiv);
+        logsContainer.scrollTop = logsContainer.scrollHeight;
+    }
+
+    function handleExecutionError(error) {
+        executionComplete = true;
+        const statusSpinner = document.getElementById('status-spinner');
+        const statusText = document.getElementById('status-text');
+        const completionActions = document.getElementById('completion-actions');
+        const logsContainer = document.getElementById('execution-logs');
+        
+        statusSpinner.classList.add('hidden');
+        statusText.textContent = 'Execution failed';
+        statusText.className = 'text-sm text-red-600';
+        completionActions.classList.remove('hidden');
+        
+        // Add error to logs
+        const errorDiv = document.createElement('div');
+        errorDiv.className = 'text-red-400';
+        errorDiv.innerHTML = `
+            <span class="text-gray-500">[${new Date().toLocaleTimeString()}]</span>
+            ❌ Error: ${error}
+        `;
+        logsContainer.appendChild(errorDiv);
+        logsContainer.scrollTop = logsContainer.scrollHeight;
+        
+        updateProgress('Failed', 100);
+    }
+
+    function continueToNext() {
+        window.location.href = '/review';
+    }
+
+    // Auto-start execution after 2 seconds for better UX
+    setTimeout(() => {
+        if (!executionStarted) {
+            startExecution();
+        }
+    }, 2000);
+</script>
+{% endblock %}
